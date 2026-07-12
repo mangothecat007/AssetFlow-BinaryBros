@@ -330,7 +330,7 @@ Disposed
 
 | Name | Role |
 |------|------|
-| **Kunal** | Developer |
+| **Kunal Makhija** | Developer |
 | **Vyas Het** | Developer |
 
 ---
