@@ -65,8 +65,8 @@
     /* warm brown-grey secondary */
     --grid-opacity: 0.06;
     --grid-color: 80, 60, 40;
-    --selection-bg: #c8bfb2;
-    --selection-text: #1a1612;
+    --selection-bg: rgba(70, 197, 165, 0.4);
+    --selection-text: #000000;
     --danger: #c0392b;
     /* slightly muted red for light bg */
     --warn: #d68910;
