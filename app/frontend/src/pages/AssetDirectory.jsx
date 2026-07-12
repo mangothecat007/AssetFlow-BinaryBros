@@ -5,26 +5,46 @@ import toast from "react-hot-toast";
 
 const AssetDirectory = () => {
   const [assets, setAssets] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState("");
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState("");
   const [showModal, setShowModal] = useState(false);
-  const [newAsset, setNewAsset] = useState({ name: "", category_id: "Electronics", location: "IT Dept", photo: null, is_bookable: false });
+  const [newAsset, setNewAsset] = useState({ 
+    name: "", 
+    category_id: "", 
+    location: "IT Dept", 
+    photo: null, 
+    is_bookable: false,
+    serial_number: "",
+    purchase_date: new Date().toISOString().split("T")[0],
+    purchase_cost: "",
+    condition: "Good"
+  });
 
-  const fetchAssets = async () => {
+  const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await api.get("/assets");
-      setAssets(res.data);
+      const [assetRes, catRes] = await Promise.all([
+        api.get("/assets"),
+        api.get("/categories")
+      ]);
+      setAssets(assetRes.data);
+      setCategories(catRes.data);
+      if (catRes.data.length > 0 && !newAsset.category_id) {
+        setNewAsset(prev => ({ ...prev, category_id: catRes.data[0].id }));
+      }
     } catch (e) {
       console.error(e);
-      toast.error("Failed to fetch assets");
+      toast.error("Failed to fetch data");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchAssets();
+    fetchData();
   }, []);
 
   const handleRegister = async (e) => {
@@ -32,10 +52,15 @@ const AssetDirectory = () => {
     try {
       const formData = new FormData();
       formData.append("name", newAsset.name || "New Asset");
-      formData.append("category_id", newAsset.category_id);
+      formData.append("category_id", newAsset.category_id || (categories[0]?.id || ""));
       formData.append("department_id", "General");
       formData.append("location", newAsset.location);
       formData.append("status", "Available");
+      formData.append("purchase_date", newAsset.purchase_date);
+      formData.append("purchase_cost", newAsset.purchase_cost || 0);
+      formData.append("serial_number", newAsset.serial_number);
+      formData.append("condition", newAsset.condition);
+      formData.append("is_bookable", newAsset.is_bookable);
       
       if (newAsset.photo) {
           formData.append("photo", newAsset.photo);
@@ -46,17 +71,31 @@ const AssetDirectory = () => {
       });
       toast.success(`Asset registered!`);
       setShowModal(false);
-      setNewAsset({ name: "", category_id: "Electronics", location: "IT Dept", photo: null, is_bookable: false });
-      fetchAssets();
+      setNewAsset({ 
+        name: "", 
+        category_id: categories[0]?.id || "", 
+        location: "IT Dept", 
+        photo: null, 
+        is_bookable: false,
+        serial_number: "",
+        purchase_date: new Date().toISOString().split("T")[0],
+        purchase_cost: "",
+        condition: "Good"
+      });
+      fetchData();
     } catch (e) {
       toast.error("Failed to register asset");
     }
   };
 
-  const filteredAssets = assets.filter(a => 
-    a.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    a.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredAssets = assets.filter(a => {
+    const matchesSearch = a.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          a.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (a.serial_number && a.serial_number.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesCategory = selectedCategoryFilter === "" || a.category_id === selectedCategoryFilter;
+    const matchesStatus = selectedStatusFilter === "" || a.status === selectedStatusFilter;
+    return matchesSearch && matchesCategory && matchesStatus;
+  });
 
   return (
     <div className="w-full">
@@ -81,20 +120,27 @@ const AssetDirectory = () => {
             />
           </div>
           <div className="flex gap-2">
-            <select className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none bg-white text-gray-700">
+            <select 
+              value={selectedCategoryFilter} 
+              onChange={e => setSelectedCategoryFilter(e.target.value)} 
+              className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none bg-white text-gray-700"
+            >
               <option value="">All Categories</option>
-              <option value="electronics">Electronics</option>
-              <option value="furniture">Furniture</option>
+              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
-            <select className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none bg-white text-gray-700">
+            <select 
+              value={selectedStatusFilter} 
+              onChange={e => setSelectedStatusFilter(e.target.value)} 
+              className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none bg-white text-gray-700"
+            >
               <option value="">All Statuses</option>
               <option value="Available">Available</option>
               <option value="Allocated">Allocated</option>
-              <option value="Maintenance">Under Maintenance</option>
+              <option value="Under Maintenance">Under Maintenance</option>
+              <option value="Lost">Lost</option>
+              <option value="Retired">Retired</option>
+              <option value="Disposed">Disposed</option>
             </select>
-            <button className="p-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-100 bg-white">
-              <Filter className="w-4 h-4" />
-            </button>
           </div>
         </div>
 
@@ -111,8 +157,9 @@ const AssetDirectory = () => {
                 <th className="p-4 font-medium">Tag</th>
                 <th className="p-4 font-medium">Name</th>
                 <th className="p-4 font-medium">Category</th>
+                <th className="p-4 font-medium">Condition</th>
                 <th className="p-4 font-medium">Status</th>
-                <th className="p-4 font-medium">Location / Holder</th>
+                <th className="p-4 font-medium">Location / Department</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -120,7 +167,10 @@ const AssetDirectory = () => {
                 <tr key={a.id} className="hover:bg-gray-50 transition-colors text-sm text-gray-900 cursor-pointer">
                   <td className="p-4 font-mono font-medium text-blue-600">{a.id}</td>
                   <td className="p-4 font-medium">{a.name}</td>
-                  <td className="p-4 text-gray-600">{a.category_id}</td>
+                  <td className="p-4 text-gray-600">
+                    {categories.find(c => c.id === a.category_id)?.name || a.category_id}
+                  </td>
+                  <td className="p-4 text-gray-600">{a.condition || "Good"}</td>
                   <td className="p-4">
                     <span className={`px-2 py-1 rounded-full text-xs font-bold ${
                       a.status === 'Available' ? 'bg-emerald-100 text-emerald-800' :
@@ -132,7 +182,7 @@ const AssetDirectory = () => {
                 </tr>
               ))}
               {!loading && filteredAssets.length === 0 && (
-                <tr><td colSpan="5" className="p-8 text-center text-gray-500">No assets found matching your criteria.</td></tr>
+                <tr><td colSpan="6" className="p-8 text-center text-gray-500">No assets found matching your criteria.</td></tr>
               )}
             </tbody>
           </table>
@@ -141,25 +191,49 @@ const AssetDirectory = () => {
 
       {showModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
             <h2 className="font-bold text-lg mb-4">Register New Asset</h2>
             <form onSubmit={handleRegister} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Asset Name</label>
                 <input required type="text" value={newAsset.name} onChange={e => setNewAsset({...newAsset, name: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-blue-500" placeholder="e.g. MacBook Pro M2" />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                <select value={newAsset.category_id} onChange={e => setNewAsset({...newAsset, category_id: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-blue-500 bg-white">
-                  <option value="Electronics">Electronics</option>
-                  <option value="Furniture">Furniture</option>
-                  <option value="Vehicles">Vehicles</option>
-                  <option value="Shared Space">Shared Space</option>
-                </select>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <select value={newAsset.category_id} onChange={e => setNewAsset({...newAsset, category_id: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-blue-500 bg-white">
+                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Serial Number</label>
+                  <input type="text" value={newAsset.serial_number} onChange={e => setNewAsset({...newAsset, serial_number: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-blue-500" placeholder="e.g. SN-123456" />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Location / Department</label>
-                <input required type="text" value={newAsset.location} onChange={e => setNewAsset({...newAsset, location: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-blue-500" placeholder="e.g. IT Dept" />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Acquisition Date</label>
+                  <input type="date" value={newAsset.purchase_date} onChange={e => setNewAsset({...newAsset, purchase_date: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Acquisition Cost ($)</label>
+                  <input type="number" value={newAsset.purchase_cost} onChange={e => setNewAsset({...newAsset, purchase_cost: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-blue-500" placeholder="e.g. 1200" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Condition</label>
+                  <select value={newAsset.condition} onChange={e => setNewAsset({...newAsset, condition: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-blue-500 bg-white">
+                    <option value="New">New</option>
+                    <option value="Good">Good</option>
+                    <option value="Fair">Fair</option>
+                    <option value="Poor">Poor</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                  <input required type="text" value={newAsset.location} onChange={e => setNewAsset({...newAsset, location: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-blue-500" placeholder="e.g. Server Room" />
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Asset Photo (Optional)</label>

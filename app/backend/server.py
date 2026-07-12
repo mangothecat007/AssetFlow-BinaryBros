@@ -82,8 +82,22 @@ async def lifespan(app: FastAPI):
         await db.db.assets.create_index("status")
         await db.db.lifecycle_events.create_index([("asset_id", 1), ("occurred_at", -1)])
         print("MongoDB Indexes Ensured")
+        
+        # Seed default admin user if none exists
+        user_count = await db.db.users.count_documents({})
+        if user_count == 0:
+            default_admin = {
+                "id": "u_admin",
+                "email": "admin@assetflow.com",
+                "password_hash": hashlib.sha256("Admin123!".encode()).hexdigest(),
+                "role": "admin",
+                "scope": "view:dashboard read:data write:system",
+                "status": "Active"
+            }
+            await db.db.users.insert_one(default_admin)
+            print("Default admin user seeded: admin@assetflow.com / Admin123!")
     except Exception as e:
-        print(f"Warning on index creation: {e}")
+        print(f"Warning on index/seed creation: {e}")
         
     # Start background task
     task = asyncio.create_task(cache_dashboard_metrics())
@@ -138,6 +152,8 @@ async def signup(login_data: LoginRequest):
         "id": f"u_{uuid.uuid4().hex[:8]}",
         "email": login_data.email,
         "password_hash": hash_password(login_data.password),
+        "name": login_data.email.split("@")[0].capitalize(),
+        "department_id": None,
         "role": role,
         "scope": "view:dashboard read:data" if role == "Employee" else "view:dashboard read:data write:system",
         "status": "Active"
@@ -180,6 +196,7 @@ class Department(BaseModel):
 class AssetCategory(BaseModel):
     id: str
     name: str
+    custom_fields: Optional[List[str]] = []
 
 class Asset(BaseModel):
     id: str # Asset Tag (e.g. AF-0001)
@@ -241,6 +258,23 @@ async def update_user_role(email: str, payload: dict):
     )
     return {"status": "success"}
 
+@api_router.patch("/users/{email}")
+async def update_user(email: str, payload: dict):
+    update_data = {}
+    if "name" in payload:
+        update_data["name"] = payload["name"]
+    if "department_id" in payload:
+        update_data["department_id"] = payload["department_id"]
+    if "status" in payload:
+        update_data["status"] = payload["status"]
+    if "role" in payload:
+        update_data["role"] = payload["role"]
+        elevated_roles = ["admin", "Asset Manager", "Department Head"]
+        update_data["scope"] = "view:dashboard read:data write:system" if payload["role"] in elevated_roles else "view:dashboard read:data"
+        
+    await db.db.users.update_one({"email": email}, {"$set": update_data})
+    return {"status": "success"}
+
 # --- CRUD ENDPOINTS ---
 @api_router.get("/assets")
 async def get_assets():
@@ -256,9 +290,14 @@ async def create_asset(
     status: str = Form("Available"),
     purchase_date: str = Form(""),
     purchase_cost: float = Form(0),
+    serial_number: Optional[str] = Form(None),
+    condition: str = Form("Good"),
+    is_bookable: bool = Form(False),
     photo: Optional[UploadFile] = File(None)
 ):
-    asset_id = f"ast_{uuid.uuid4().hex[:8]}"
+    asset_count = await db.db.assets.count_documents({})
+    asset_id = f"AF-{asset_count + 1:04d}"
+    
     photo_url = None
     if photo:
         ext = photo.filename.split(".")[-1]
@@ -277,6 +316,9 @@ async def create_asset(
         "status": status,
         "purchase_date": purchase_date,
         "purchase_cost": purchase_cost,
+        "serial_number": serial_number,
+        "condition": condition,
+        "is_bookable": is_bookable,
         "photo_url": photo_url,
         "created_at": datetime.now().isoformat()
     })
@@ -293,6 +335,21 @@ async def create_department(dept: Department):
     await db.db.departments.insert_one(dept.model_dump())
     return {"status": "success", "id": dept.id}
 
+@api_router.patch("/departments/{dept_id}")
+async def update_department(dept_id: str, payload: dict):
+    update_data = {}
+    if "name" in payload:
+        update_data["name"] = payload["name"]
+    if "head_id" in payload:
+        update_data["head_id"] = payload["head_id"]
+    if "parent_id" in payload:
+        update_data["parent_id"] = payload["parent_id"]
+    if "status" in payload:
+        update_data["status"] = payload["status"]
+    
+    await db.db.departments.update_one({"id": dept_id}, {"$set": update_data})
+    return {"status": "success"}
+
 @api_router.get("/categories")
 async def get_categories():
     cursor = db.db.categories.find({}, {"_id": 0})
@@ -302,6 +359,17 @@ async def get_categories():
 async def create_category(cat: AssetCategory):
     await db.db.categories.insert_one(cat.model_dump())
     return {"status": "success", "id": cat.id}
+
+@api_router.patch("/categories/{cat_id}")
+async def update_category(cat_id: str, payload: dict):
+    update_data = {}
+    if "name" in payload:
+        update_data["name"] = payload["name"]
+    if "custom_fields" in payload:
+        update_data["custom_fields"] = payload["custom_fields"]
+        
+    await db.db.categories.update_one({"id": cat_id}, {"$set": update_data})
+    return {"status": "success"}
 
 # --- ALLOCATIONS ---
 @api_router.get("/allocations")
