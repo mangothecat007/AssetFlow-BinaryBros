@@ -107,8 +107,6 @@ const DepartmentsManager = () => {
         <thead>
           <tr className="bg-white border-b border-gray-200 text-gray-500 text-xs uppercase tracking-wider">
             <th className="p-4 font-medium">Department</th>
-            <th className="p-4 font-medium">Head</th>
-            <th className="p-4 font-medium">Parent Dept</th>
             <th className="p-4 font-medium">Status</th>
           </tr>
         </thead>
@@ -116,13 +114,11 @@ const DepartmentsManager = () => {
           {departments.map((d) => (
             <tr key={d.id} className="hover:bg-gray-50 transition-colors text-sm text-gray-900">
               <td className="p-4 font-medium">{d.name}</td>
-              <td className="p-4 text-gray-600">{d.head_id || "--"}</td>
-              <td className="p-4 text-gray-400">{d.parent_id || "--"}</td>
               <td className="p-4"><span className="px-2 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-bold">{d.status}</span></td>
             </tr>
           ))}
           {departments.length === 0 && (
-            <tr><td colSpan="4" className="p-4 text-center text-gray-500">No departments found</td></tr>
+            <tr><td colSpan="2" className="p-4 text-center text-gray-500">No departments found</td></tr>
           )}
         </tbody>
       </table>
