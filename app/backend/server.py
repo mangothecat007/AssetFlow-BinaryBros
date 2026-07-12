@@ -284,7 +284,7 @@ async def update_allocation(alloc_id: str, payload: dict = Body(...)):
         
     return {"message": "Updated"}
 
-@api_router.post("/allocations/transfer")
+@api_router.post("/allocations")
 async def request_transfer(allocation: Allocation):
     try:
         await db.db.allocations.insert_one(allocation.model_dump())
@@ -305,6 +305,58 @@ async def request_transfer(allocation: Allocation):
     )
     
     return {"message": "Allocated"}
+
+# --- TRANSFERS ---
+@api_router.get("/transfers")
+async def get_transfers():
+    cursor = db.db.transfers.find({}, {"_id": 0})
+    return await cursor.to_list(length=None)
+
+@api_router.post("/transfers")
+async def request_transfer(payload: dict):
+    transfer = {
+        "id": f"tx_{uuid.uuid4().hex[:8]}",
+        "asset_id": payload["asset_id"],
+        "requested_by": payload["requested_by"],
+        "status": "Requested",
+        "timestamp": datetime.now().isoformat()
+    }
+    await db.db.transfers.insert_one(transfer)
+    
+    # Notify admins/managers
+    await create_notification("admin", "Transfer Requested", f"User {payload['requested_by']} requested a transfer for {payload['asset_id']}", "transfer_requested")
+    return {"status": "success", "id": transfer["id"]}
+
+@api_router.patch("/transfers/{tx_id}/approve")
+async def approve_transfer(tx_id: str, payload: dict):
+    tx = await db.db.transfers.find_one({"id": tx_id})
+    if not tx:
+         raise HTTPException(status_code=404)
+         
+    new_status = payload.get("status")
+    await db.db.transfers.update_one({"id": tx_id}, {"$set": {"status": new_status}})
+    
+    if new_status == "Approved":
+         # Actually perform the allocation transfer
+         await db.db.allocations.update_many(
+             {"asset_id": tx["asset_id"], "status": "Active"}, 
+             {"$set": {"status": "Returned", "return_date": datetime.now().isoformat()}}
+         )
+         new_alloc_id = f"alloc_{uuid.uuid4().hex[:8]}"
+         await db.db.allocations.insert_one({
+             "id": new_alloc_id,
+             "asset_id": tx["asset_id"],
+             "allocated_to": tx["requested_by"],
+             "status": "Active",
+             "allocation_date": datetime.now().isoformat()
+         })
+         await record_lifecycle_event(tx["asset_id"], "Allocated", "Allocated", "transfer", new_alloc_id, "system", f"Transferred to {tx['requested_by']}")
+         await create_notification(tx["requested_by"], "Transfer Approved", f"Your transfer for {tx['asset_id']} was approved.", "transfer_approved")
+         
+    elif new_status == "Rejected":
+         await create_notification(tx["requested_by"], "Transfer Rejected", f"Your transfer request for {tx['asset_id']} was denied.", "transfer_rejected")
+
+    return {"status": "success"}
 
 # --- BOOKINGS ---
 @api_router.get("/bookings")

@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 const AllocationView = () => {
   const [assets, setAssets] = useState([]);
   const [allocations, setAllocations] = useState([]);
+  const [transfers, setTransfers] = useState([]);
   const [selectedAsset, setSelectedAsset] = useState("");
   const [targetEmployee, setTargetEmployee] = useState("");
   const [returnDate, setReturnDate] = useState("");
@@ -19,12 +20,14 @@ const AllocationView = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [aRes, alRes] = await Promise.all([
+        const [aRes, alRes, txRes] = await Promise.all([
           api.get("/assets"),
-          api.get("/allocations")
+          api.get("/allocations"),
+          api.get("/transfers")
         ]);
         setAssets(aRes.data);
         setAllocations(alRes.data);
+        setTransfers(txRes.data);
       } catch (e) {
         console.error(e);
       }
@@ -37,26 +40,40 @@ const AllocationView = () => {
     if (!selectedAsset || !targetEmployee) return toast.error("Please fill required fields");
     setLoading(true);
     try {
-      await api.post("/allocations/transfer", {
-        id: "alloc_" + Date.now(),
-        asset_id: selectedAsset,
-        allocated_to: targetEmployee,
-        expected_return_date: returnDate || null,
-        status: "Active"
-      });
-      toast.success("Allocation processed!");
+      const isAlreadyAllocated = allocations.some(al => al.asset_id === selectedAsset && al.status === "Active");
+      
+      if (isAlreadyAllocated) {
+          await api.post("/transfers", {
+              asset_id: selectedAsset,
+              requested_by: targetEmployee,
+          });
+          toast.success("Transfer request submitted!");
+      } else {
+          await api.post("/allocations", {
+            id: "alloc_" + Date.now(),
+            asset_id: selectedAsset,
+            allocated_to: targetEmployee,
+            expected_return_date: returnDate || null,
+            status: "Active"
+          });
+          toast.success("Allocation processed!");
+      }
       setSelectedAsset("");
       setTargetEmployee("");
       setReturnDate("");
       setNotes("");
-      fetchData();
+      
+      const [aRes, alRes, txRes] = await Promise.all([
+        api.get("/assets"),
+        api.get("/allocations"),
+        api.get("/transfers")
+      ]);
+      setAssets(aRes.data);
       setAllocations(alRes.data);
+      setTransfers(txRes.data);
+      
     } catch (e) {
-      if (e.response && e.response.status === 409) {
-        toast.error(e.response.data.detail || "Conflict: Asset already allocated");
-      } else {
-        toast.error("Failed to request transfer");
-      }
+      toast.error(e.response?.data?.detail || "Failed to process request");
     } finally {
       setLoading(false);
     }
@@ -144,9 +161,39 @@ const AllocationView = () => {
         {/* History / Active Transfers */}
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm flex flex-col">
           <div className="p-4 border-b border-gray-200 bg-gray-50">
-            <h2 className="text-lg font-bold text-gray-800">Allocation History</h2>
+            <h2 className="text-lg font-bold text-gray-800">Transfers & History</h2>
           </div>
           <div className="p-4 text-sm text-gray-600 space-y-3">
+             
+             {/* Pending Transfers */}
+             {transfers.filter(t => t.status === "Requested").map(tx => (
+               <div key={tx.id} className="border border-blue-200 bg-blue-50/50 p-3 rounded-lg flex justify-between items-center mb-4">
+                 <div>
+                   <p className="font-medium text-gray-900">Transfer Request: Asset {tx.asset_id}</p>
+                   <p className="text-xs text-gray-600">Requested by: <span className="font-bold">{tx.requested_by}</span></p>
+                 </div>
+                 <div className="flex gap-2">
+                   {isManager && (
+                     <>
+                       <button onClick={async () => {
+                         await api.patch(`/transfers/${tx.id}/approve`, { status: "Rejected" });
+                         toast.error("Transfer rejected");
+                         api.get("/transfers").then(res => setTransfers(res.data));
+                       }} className="px-3 py-1 bg-white text-red-600 border border-red-200 rounded-md hover:bg-red-50 text-xs font-bold">Reject</button>
+                       <button onClick={async () => {
+                         await api.patch(`/transfers/${tx.id}/approve`, { status: "Approved" });
+                         toast.success("Transfer approved");
+                         const [alRes, txRes] = await Promise.all([api.get("/allocations"), api.get("/transfers")]);
+                         setAllocations(alRes.data);
+                         setTransfers(txRes.data);
+                       }} className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-xs font-bold">Approve</button>
+                     </>
+                   )}
+                 </div>
+               </div>
+             ))}
+
+             {/* Active Allocations */}
              {allocations.map(al => (
                <div key={al.id} className="border-b border-gray-50 pb-3 flex justify-between items-center">
                  <div>
@@ -157,15 +204,8 @@ const AllocationView = () => {
                    </p>
                  </div>
                  <div className="flex gap-2">
-                   {al.status === "Pending Transfer" && isManager && (
-                     <button onClick={async () => {
-                       await api.patch(`/allocations/${al.id}`, { status: "Approved" });
-                       toast.success("Transfer approved");
-                       api.get("/allocations").then(res => setAllocations(res.data));
-                     }} className="px-3 py-1 bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 text-xs font-bold">Approve Transfer</button>
-                   )}
                    {al.status === "Active" && (
-                     <button onClick={() => setReturnModal({ open: true, allocId: al.id, notes: "" })} className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-md hover:bg-emerald-100 text-xs font-bold">Mark Returned</button>
+                     <button onClick={() => setReturnModal({ open: true, allocId: al.id, notes: "" })} className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-md hover:bg-emerald-100 text-xs font-bold transition-colors">Mark Returned</button>
                    )}
                  </div>
                </div>
