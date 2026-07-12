@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { ArrowRightLeft, ShieldAlert, Loader2 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, userStore } from "@/lib/api";
 import toast from "react-hot-toast";
 
 const AllocationView = () => {
@@ -87,7 +87,7 @@ const AllocationView = () => {
               </select>
             </div>
             
-            {/* Conflict Warning Mockup */}
+            {/* Conflict Warning */}
             {selectedAsset && allocations.find(al => al.asset_id === selectedAsset && al.status === "Active") && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex gap-3 text-red-800 text-sm">
                 <ShieldAlert className="w-5 h-5 flex-shrink-0" />

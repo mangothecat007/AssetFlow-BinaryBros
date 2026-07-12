@@ -463,15 +463,6 @@ async def get_activity_logs():
             "message": f"Audit Cycle '{au['name']}' is {au['status']}",
             "timestamp": au.get("start_date", datetime.now().isoformat())
         })
-        
-    # Mock Booking Reminders
-    logs.append({
-        "id": "log_reminder_1",
-        "type": "allocation",
-        "message": "Reminder: Room B2 booking starts in 1 hour.",
-        "timestamp": datetime.now().isoformat()
-    })
-        
     logs = sorted(logs, key=lambda x: x["timestamp"], reverse=True)
     return logs
 
@@ -492,29 +483,75 @@ async def get_reports():
     ])
     maintenance_freq = await maintenance_cursor.to_list(length=None)
 
-    # Mock department usage based on allocation data
-    # (Since departments are loose strings in this system right now)
-    dept_usage = [
-        {"dept": "IT Dept", "percentage": 75},
-        {"dept": "Operations", "percentage": 45},
-        {"dept": "HR", "percentage": 20},
-        {"dept": "Warehouse", "percentage": 85},
-    ]
+    # Department usage based on asset location and status
+    dept_cursor = db.db.assets.aggregate([
+        {
+            "$group": {
+                "_id": "$location",
+                "total": {"$sum": 1},
+                "allocated": {
+                    "$sum": {"$cond": [{"$eq": ["$status", "Allocated"]}, 1, 0]}
+                }
+            }
+        },
+        {
+            "$project": {
+                "dept": {"$ifNull": ["$_id", "Unassigned"]},
+                "percentage": {
+                    "$cond": [
+                        {"$eq": ["$total", 0]}, 
+                        0, 
+                        {"$round": [{"$multiply": [{"$divide": ["$allocated", "$total"]}, 100]}, 0]}
+                    ]
+                }
+            }
+        },
+        {"$sort": {"percentage": -1}}
+    ])
+    dept_usage = await dept_cursor.to_list(length=None)
     
-    # Mock Retirement List (Assets nearing end of life)
-    retirement_list = [
-        {"id": "AF-0012", "name": "Dell OptiPlex", "age_years": 4, "condition": "Poor"},
-        {"id": "AF-0045", "name": "Office Printer", "age_years": 5, "condition": "Damaged"},
-    ]
+    # Real Retirement List (Assets missing or in maintenance)
+    ret_cursor = db.db.assets.find(
+        {"status": {"$in": ["Lost", "Under Maintenance"]}},
+        {"_id": 0, "id": 1, "name": 1, "status": 1}
+    ).limit(5)
+    ret_assets = await ret_cursor.to_list(length=None)
+    retirement_list = []
+    for a in ret_assets:
+        retirement_list.append({
+            "id": a["id"],
+            "name": a.get("name", "Unknown"),
+            "condition": a.get("status", "Unknown")
+        })
     
-    # Mock Booking Heatmap (Peak usage windows)
-    booking_heatmap = [
-        {"day": "Mon", "hours": [20, 40, 80, 90, 60, 30]},
-        {"day": "Tue", "hours": [30, 50, 85, 95, 70, 40]},
-        {"day": "Wed", "hours": [40, 60, 90, 80, 65, 45]},
-        {"day": "Thu", "hours": [35, 55, 75, 85, 50, 35]},
-        {"day": "Fri", "hours": [25, 45, 60, 50, 30, 20]}
-    ]
+    # Booking Heatmap using real DB bookings
+    heatmap_cursor = db.db.bookings.aggregate([
+        {
+            "$addFields": {
+                "parsed_date": {"$dateFromString": {"dateString": "$start_time"}}
+            }
+        },
+        {
+            "$group": {
+                "_id": {
+                    "day": {"$dayOfWeek": "$parsed_date"},
+                    "hour": {"$hour": "$parsed_date"}
+                },
+                "count": {"$sum": 1}
+            }
+        }
+    ])
+    raw_heatmap = await heatmap_cursor.to_list(length=None)
+    
+    days_map = {1: "Sun", 2: "Mon", 3: "Tue", 4: "Wed", 5: "Thu", 6: "Fri", 7: "Sat"}
+    heatmap_dict = {d: [0]*24 for d in days_map.values()}
+    for entry in raw_heatmap:
+        day_str = days_map.get(entry["_id"]["day"])
+        hour = entry["_id"]["hour"]
+        if day_str and 0 <= hour < 24:
+            heatmap_dict[day_str][hour] = entry["count"]
+            
+    booking_heatmap = [{"day": d, "hours": heatmap_dict[d]} for d in ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]]
     
     return {
         "category_breakdown": category_breakdown,

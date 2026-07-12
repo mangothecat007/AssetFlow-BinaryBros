@@ -51,9 +51,9 @@
 }
 
 [data-theme="light"] {
-    --bg: #eeecdd;
+    --bg: #f1f1f1;
     /* warm parchment base */
-    --surface: #e4e2d1;
+    --surface: #f0efee;
     /* soft cream surface */
     --surface-hover: #ede8df;
     /* slightly deeper cream on hover */

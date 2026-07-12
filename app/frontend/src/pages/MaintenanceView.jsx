@@ -126,13 +126,13 @@ const KanbanCard = ({ t, onUpdate }) => {
         </div>
         <div className="flex gap-2">
           {t.status === "Pending Approval" && isManager && (
-            <button onClick={() => updateStatus("Approved")} className="flex-1 bg-amber-100 hover:bg-amber-200 text-amber-800 text-[10px] font-bold py-1 rounded">Approve</button>
+            <button onClick={() => updateStatus("Approved")} className="flex-1 bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-bold py-2 px-2 rounded-md shadow-sm transition-colors">Approve</button>
           )}
           {t.status === "Approved" && isManager && (
-            <button onClick={() => updateStatus("In Progress")} className="flex-1 bg-blue-100 hover:bg-blue-200 text-blue-800 text-[10px] font-bold py-1 rounded">Assign Tech</button>
+            <button onClick={() => updateStatus("In Progress")} className="flex-1 bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs font-bold py-2 px-2 rounded-md shadow-sm transition-colors">Assign Tech</button>
           )}
           {t.status === "In Progress" && (
-            <button onClick={() => updateStatus("Resolved")} className="flex-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-[10px] font-bold py-1 rounded">Mark Resolved</button>
+            <button onClick={() => updateStatus("Resolved")} className="flex-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-xs font-bold py-2 px-2 rounded-md shadow-sm transition-colors">Mark Resolved</button>
           )}
         </div>
       </div>
