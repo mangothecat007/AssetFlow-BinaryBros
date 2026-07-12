@@ -1,32 +1,28 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "@/context/AuthContext";
+import { api, userStore } from "@/lib/api";
 import toast from "react-hot-toast";
-import { tokenStore } from "@/lib/api";
 
-const Login = () => {
+const Signup = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  
-  const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleLogin = async (e) => {
+  const handleSignup = async (e) => {
     e.preventDefault();
     setLoading(true);
-
     try {
-      const success = await login(username, password);
-      if (success) {
-        toast.success("Authentication successful");
-        navigate("/app/dashboard");
-      } else {
-        toast.error("Invalid credentials");
-        setLoading(false);
-      }
-    } catch (err) {
-      toast.error("An error occurred during login");
+      const res = await api.post("/auth/signup", { username, password });
+      toast.success(`Account created! You are assigned as ${res.data.role}`);
+      // Auto-login after signup
+      const loginRes = await api.post("/auth/login", { username, password });
+      userStore.setToken(loginRes.data.access_token);
+      userStore.setRole(loginRes.data.role);
+      navigate("/app/dashboard");
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Signup failed");
+    } finally {
       setLoading(false);
     }
   };
@@ -38,11 +34,11 @@ const Login = () => {
           <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center mx-auto mb-4 font-bold text-blue-600 text-xl shadow-sm">
             AF
           </div>
-          <h1 className="text-2xl font-bold">Welcome Back</h1>
-          <p className="text-blue-100 mt-2 text-sm">Login to your AssetFlow account.</p>
+          <h1 className="text-2xl font-bold">Join AssetFlow</h1>
+          <p className="text-blue-100 mt-2 text-sm">Create an employee account to get started.</p>
         </div>
         
-        <form onSubmit={handleLogin} className="p-8 space-y-6">
+        <form onSubmit={handleSignup} className="p-8 space-y-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Username</label>
             <input 
@@ -72,11 +68,11 @@ const Login = () => {
             disabled={loading}
             className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed shadow-sm"
           >
-            {loading ? "Authenticating..." : "Log In"}
+            {loading ? "Creating Account..." : "Sign Up"}
           </button>
           
           <div className="text-center text-sm text-gray-600">
-            Don't have an account? <Link to="/signup" className="text-blue-600 font-bold hover:underline">Sign up</Link>
+            Already have an account? <Link to="/login" className="text-blue-600 font-bold hover:underline">Log in</Link>
           </div>
         </form>
       </div>
@@ -84,4 +80,4 @@ const Login = () => {
   );
 };
 
-export default Login;
+export default Signup;

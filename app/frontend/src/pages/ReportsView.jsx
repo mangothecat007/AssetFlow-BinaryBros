@@ -1,62 +1,147 @@
-import React from "react";
-import { BarChart, PieChart, Activity, Download } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { BarChart3, Download, Loader2, TrendingUp, AlertTriangle } from "lucide-react";
+import { api } from "@/lib/api";
+import toast from "react-hot-toast";
 
 const ReportsView = () => {
+  const [data, setData] = useState({ 
+    category_breakdown: [], 
+    department_usage: [],
+    maintenance_frequency: []
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get("/analytics/reports")
+      .then(res => setData(res.data))
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  const exportCSV = () => {
+    if (!data.category_breakdown.length) return toast.error("No data to export");
+    
+    const headers = ["Category", "Asset Count"];
+    const rows = data.category_breakdown.map(c => `${c._id},${c.count}`);
+    const csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n" + rows.join("\n");
+    
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `asset_report_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Report downloaded");
+  };
+
   return (
-    <div className="w-full h-full flex flex-col">
+    <div className="w-full">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Reports & Analytics</h1>
-        <button className="bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg font-medium text-sm transition-colors shadow-sm flex items-center gap-2">
-          <Download className="w-4 h-4" /> Export Report
+        <h1 className="text-2xl font-bold text-gray-800">Analytics & Reports</h1>
+        <button 
+          onClick={exportCSV}
+          className="bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg font-medium text-sm transition-colors shadow-sm flex items-center gap-2"
+        >
+          <Download className="w-4 h-4" /> Export CSV
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1">
-        {/* Utilization Chart Placeholder */}
-        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm flex flex-col">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Chart 1: Department Utilization */}
+        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm lg:col-span-2">
           <h2 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">
-            <BarChart className="w-5 h-5 text-blue-500" /> Utilization by Department
+            <TrendingUp className="w-5 h-5 text-blue-600" /> Department Utilization
           </h2>
-          <div className="flex-1 flex items-end justify-center gap-6 pb-4 border-b border-gray-100">
-            {/* Simple CSS Bar Chart Mockup */}
-            <div className="flex flex-col items-center gap-2">
-              <div className="w-12 bg-blue-500 rounded-t-md h-32"></div>
-              <span className="text-xs font-medium text-gray-500">ENG</span>
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <div className="w-12 bg-indigo-500 rounded-t-md h-48"></div>
-              <span className="text-xs font-medium text-gray-500">IT</span>
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <div className="w-12 bg-emerald-500 rounded-t-md h-24"></div>
-              <span className="text-xs font-medium text-gray-500">FAC</span>
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <div className="w-12 bg-amber-500 rounded-t-md h-16"></div>
-              <span className="text-xs font-medium text-gray-500">MKT</span>
-            </div>
-          </div>
-          <div className="mt-4 text-sm text-gray-600">
-            <p><strong>Most used assets:</strong> Room B2 (34 bookings this month)</p>
+          
+          <div className="space-y-6 relative min-h-[200px]">
+            {loading ? (
+              <div className="absolute inset-0 bg-white/80 z-20 flex items-center justify-center">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+              </div>
+            ) : (
+              data.department_usage.map((dept, i) => (
+                <div key={i}>
+                  <div className="flex justify-between text-sm font-medium mb-2">
+                    <span className="text-gray-700">{dept.dept}</span>
+                    <span className="text-blue-700">{dept.percentage}%</span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+                    <div 
+                      className="bg-blue-500 h-3 rounded-full transition-all duration-1000" 
+                      style={{ width: `${dept.percentage}%` }}
+                    ></div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
-        {/* Maintenance Frequency Placeholder */}
-        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm flex flex-col">
-          <h2 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">
-            <Activity className="w-5 h-5 text-red-500" /> Maintenance Frequency
-          </h2>
-          <div className="flex-1 flex items-center justify-center border border-dashed border-gray-200 rounded-lg bg-gray-50 mb-4">
-             <span className="text-gray-400 font-medium">Line Chart Visualization</span>
+        <div className="space-y-6">
+          {/* Chart 2: Asset Categories */}
+          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+            <h2 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-emerald-600" /> Category Breakdown
+            </h2>
+            
+            <div className="space-y-6 relative min-h-[150px]">
+              {loading ? (
+                <div className="absolute inset-0 bg-white/80 z-20 flex items-center justify-center">
+                  <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+                </div>
+              ) : (
+                data.category_breakdown.map((cat, i) => {
+                  const percentage = Math.min(100, (cat.count / 50) * 100);
+                  return (
+                    <div key={i}>
+                      <div className="flex justify-between text-sm font-medium mb-1.5">
+                        <span className="text-gray-700">{cat._id}</span>
+                        <span className="text-emerald-700">{cat.count} items</span>
+                      </div>
+                      <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                        <div 
+                          className="bg-emerald-500 h-2 rounded-full transition-all duration-1000" 
+                          style={{ width: `${percentage}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+              {!loading && data.category_breakdown.length === 0 && (
+                <p className="text-gray-500 text-sm text-center">No assets found.</p>
+              )}
+            </div>
           </div>
-          <div className="text-sm text-gray-600 space-y-2">
-            <p className="text-red-700"><strong>Assets due for maintenance / nearing retirement:</strong></p>
-            <ul className="list-disc pl-5">
-              <li>Forklift AF-0092 : service due in 5 days</li>
-              <li>Laptop AF-0020 : 4 years old (nearing retirement)</li>
-            </ul>
+
+          {/* Chart 3: Maintenance Frequency */}
+          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+            <h2 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-600" /> Most Frequent Maintained
+            </h2>
+            
+            <div className="space-y-4 relative min-h-[150px]">
+              {loading ? (
+                <div className="absolute inset-0 bg-white/80 z-20 flex items-center justify-center">
+                  <Loader2 className="w-8 h-8 animate-spin text-amber-600" />
+                </div>
+              ) : (
+                data.maintenance_frequency?.map((mf, i) => (
+                  <div key={i} className="flex justify-between items-center text-sm border-b border-gray-100 pb-2">
+                    <span className="font-medium text-gray-800 font-mono text-xs bg-gray-50 px-2 py-1 rounded border border-gray-200">{mf._id}</span>
+                    <span className="text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded">{mf.count} tickets</span>
+                  </div>
+                ))
+              )}
+              {!loading && (!data.maintenance_frequency || data.maintenance_frequency.length === 0) && (
+                <p className="text-gray-500 text-sm text-center">No maintenance records.</p>
+              )}
+            </div>
           </div>
         </div>
+
       </div>
     </div>
   );

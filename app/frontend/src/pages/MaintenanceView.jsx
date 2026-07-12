@@ -46,22 +46,22 @@ const MaintenanceView = () => {
         <div className="flex gap-6 min-w-max h-full pb-4">
           
           <KanbanColumn title="Pending Approval" count={pending.length} color="amber">
-            {pending.map(t => <KanbanCard key={t.id} t={t} />)}
+            {pending.map(t => <KanbanCard key={t.id} t={t} onUpdate={fetchTickets} />)}
             {pending.length === 0 && <p className="text-xs text-gray-400 text-center py-4">No tickets</p>}
           </KanbanColumn>
 
           <KanbanColumn title="Approved (Waiting Tech)" count={approved.length} color="blue">
-            {approved.map(t => <KanbanCard key={t.id} t={t} />)}
+            {approved.map(t => <KanbanCard key={t.id} t={t} onUpdate={fetchTickets} />)}
             {approved.length === 0 && <p className="text-xs text-gray-400 text-center py-4">No tickets</p>}
           </KanbanColumn>
 
           <KanbanColumn title="In Progress" count={inProgress.length} color="indigo">
-            {inProgress.map(t => <KanbanCard key={t.id} t={t} />)}
+            {inProgress.map(t => <KanbanCard key={t.id} t={t} onUpdate={fetchTickets} />)}
             {inProgress.length === 0 && <p className="text-xs text-gray-400 text-center py-4">No tickets</p>}
           </KanbanColumn>
 
           <KanbanColumn title="Resolved" count={resolved.length} color="emerald">
-            {resolved.map(t => <KanbanCard key={t.id} t={t} />)}
+            {resolved.map(t => <KanbanCard key={t.id} t={t} onUpdate={fetchTickets} />)}
             {resolved.length === 0 && <p className="text-xs text-gray-400 text-center py-4">No tickets</p>}
           </KanbanColumn>
 
@@ -94,20 +94,43 @@ const KanbanColumn = ({ title, count, color, children }) => {
   );
 };
 
-const KanbanCard = ({ t }) => {
+const KanbanCard = ({ t, onUpdate }) => {
   const pColor = t.priority === "High" ? "text-red-600 bg-red-50" : t.priority === "Medium" ? "text-amber-600 bg-amber-50" : "text-emerald-600 bg-emerald-50";
 
+  const updateStatus = async (newStatus) => {
+    try {
+      await api.patch(`/maintenance/${t.id}/status`, { status: newStatus });
+      toast.success(`Ticket moved to ${newStatus}`);
+      onUpdate();
+    } catch (e) {
+      toast.error("Failed to update ticket");
+    }
+  };
+
   return (
-    <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow cursor-grab">
+    <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
       <div className="flex justify-between items-start mb-2">
         <span className="text-xs font-bold text-blue-600 font-mono">{t.asset_id}</span>
         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${pColor}`}>{t.priority || 'Medium'}</span>
       </div>
       <h4 className="font-bold text-sm text-gray-800 line-clamp-1">{t.issue_description}</h4>
       
-      <div className="mt-3 pt-3 border-t border-gray-100 flex justify-between items-center text-[10px] text-gray-400">
-        <div className="flex items-center gap-1">
-          <Clock className="w-3 h-3" /> {new Date(t.reported_at).toLocaleDateString()}
+      <div className="mt-3 pt-3 border-t border-gray-100 flex flex-col gap-2">
+        <div className="flex justify-between items-center text-[10px] text-gray-400">
+          <div className="flex items-center gap-1">
+            <Clock className="w-3 h-3" /> {new Date(t.reported_at || Date.now()).toLocaleDateString()}
+          </div>
+        </div>
+        <div className="flex gap-2">
+          {t.status === "Pending Approval" && (
+            <button onClick={() => updateStatus("Approved")} className="flex-1 bg-amber-100 hover:bg-amber-200 text-amber-800 text-[10px] font-bold py-1 rounded">Approve</button>
+          )}
+          {t.status === "Approved" && (
+            <button onClick={() => updateStatus("In Progress")} className="flex-1 bg-blue-100 hover:bg-blue-200 text-blue-800 text-[10px] font-bold py-1 rounded">Assign Tech</button>
+          )}
+          {t.status === "In Progress" && (
+            <button onClick={() => updateStatus("Resolved")} className="flex-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-[10px] font-bold py-1 rounded">Mark Resolved</button>
+          )}
         </div>
       </div>
     </div>
