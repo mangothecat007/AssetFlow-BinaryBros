@@ -12,17 +12,6 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const path = window.location.pathname;
-      if (!path.startsWith("/police") && path !== "/login" && !path.startsWith("/incident")) {
-        setIsLoading(false);
-        return;
-      }
-
-      // Purge stale token keys from localStorage (left by old code paths)
-      ["entry_jwt", "entry_jwt_expiry", "onealert_token", "onealert_token_expiry", "user_role"].forEach(
-        k => localStorage.removeItem(k)
-      );
-
       // Token lives in sessionStorage (survives reload, dies on browser close)
       let token = tokenStore.get();
 

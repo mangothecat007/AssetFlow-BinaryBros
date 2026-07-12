@@ -76,12 +76,12 @@ const BookingView = () => {
     }));
 
   return (
-    <div className="w-full">
+    <div className="w-full pb-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Resource Booking</h1>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
         
         {/* Booking Form */}
         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm h-fit">
@@ -134,14 +134,15 @@ const BookingView = () => {
         </div>
 
         {/* Calendar View */}
-        <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm flex flex-col p-4 h-[600px]">
+        <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col p-4" style={{minHeight: '600px'}}>
            <h2 className="text-lg font-bold text-gray-800 mb-4">Availability Calendar</h2>
+           <div style={{flex: 1, minHeight: '520px'}}>
            <Calendar
               localizer={localizer}
               events={events}
               startAccessor="start"
               endAccessor="end"
-              style={{ height: "100%" }}
+              style={{ height: '520px' }}
               eventPropGetter={(event) => {
                 let backgroundColor = '#3b82f6';
                 if (event.status === 'Cancelled') backgroundColor = '#ef4444';
@@ -149,6 +150,7 @@ const BookingView = () => {
                 return { style: { backgroundColor } };
               }}
             />
+           </div>
         </div>
       </div>
     </div>

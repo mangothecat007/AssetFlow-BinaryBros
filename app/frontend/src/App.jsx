@@ -17,6 +17,7 @@ import Notifications from "@/pages/Notifications.jsx";
 import { userStore } from "@/lib/api";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import NotificationBell from "@/components/NotificationBell.jsx";
+import TopBar from "@/components/TopBar.jsx";
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated } = useAuth();
@@ -82,12 +83,7 @@ const AppLayout = () => {
         </div>
       </aside>
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-8 flex-shrink-0">
-          <div className="text-gray-500 font-medium">Welcome back!</div>
-          <div className="flex items-center gap-4">
-             <NotificationBell />
-          </div>
-        </header>
+        <TopBar />
         <div className="flex-1 p-8 overflow-y-auto">
           <Outlet />
         </div>
