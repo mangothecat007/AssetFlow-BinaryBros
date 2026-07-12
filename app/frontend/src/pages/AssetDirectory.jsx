@@ -7,6 +7,8 @@ const AssetDirectory = () => {
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [showModal, setShowModal] = useState(false);
+  const [newAsset, setNewAsset] = useState({ name: "", category_id: "Electronics", location: "IT Dept", is_bookable: false });
 
   const fetchAssets = async () => {
     setLoading(true);
@@ -25,18 +27,22 @@ const AssetDirectory = () => {
     fetchAssets();
   }, []);
 
-  const handleRegister = async () => {
+  const handleRegister = async (e) => {
+    e.preventDefault();
     const id = "AF-" + Math.floor(Math.random() * 10000).toString().padStart(4, "0");
     try {
       await api.post("/assets", {
         id,
-        name: "New Registered Asset",
-        category_id: "cat_1",
+        name: newAsset.name || "New Asset",
+        category_id: newAsset.category_id,
         status: "Available",
         condition: "New",
-        location: "Warehouse"
+        location: newAsset.location,
+        is_bookable: newAsset.is_bookable
       });
-      toast.success(`Asset ${id} registered successfully!`);
+      toast.success(`Asset ${id} registered!`);
+      setShowModal(false);
+      setNewAsset({ name: "", category_id: "Electronics", location: "IT Dept", is_bookable: false });
       fetchAssets();
     } catch (e) {
       toast.error("Failed to register asset");
@@ -52,7 +58,7 @@ const AssetDirectory = () => {
     <div className="w-full">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Asset Directory</h1>
-        <button onClick={handleRegister} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition-colors shadow-sm flex items-center gap-2">
+        <button onClick={() => setShowModal(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition-colors shadow-sm flex items-center gap-2">
           <Plus className="w-4 h-4" /> Register Asset
         </button>
       </div>
@@ -128,6 +134,41 @@ const AssetDirectory = () => {
           </table>
         </div>
       </div>
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <h2 className="font-bold text-lg mb-4">Register New Asset</h2>
+            <form onSubmit={handleRegister} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Asset Name</label>
+                <input required type="text" value={newAsset.name} onChange={e => setNewAsset({...newAsset, name: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-blue-500" placeholder="e.g. MacBook Pro M2" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                <select value={newAsset.category_id} onChange={e => setNewAsset({...newAsset, category_id: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-blue-500 bg-white">
+                  <option value="Electronics">Electronics</option>
+                  <option value="Furniture">Furniture</option>
+                  <option value="Vehicles">Vehicles</option>
+                  <option value="Shared Space">Shared Space</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Location / Department</label>
+                <input required type="text" value={newAsset.location} onChange={e => setNewAsset({...newAsset, location: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-blue-500" placeholder="e.g. IT Dept" />
+              </div>
+              <div className="flex items-center gap-2 pt-2">
+                <input type="checkbox" id="bookable" checked={newAsset.is_bookable} onChange={e => setNewAsset({...newAsset, is_bookable: e.target.checked})} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />
+                <label htmlFor="bookable" className="text-sm font-medium text-gray-700">Shared / Bookable Resource</label>
+              </div>
+              <div className="flex justify-end gap-2 mt-6">
+                <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm font-medium">Cancel</button>
+                <button type="submit" className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg text-sm font-medium">Register</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -47,7 +47,7 @@ const AppLayout = () => {
         </div>
         <nav className="flex flex-col gap-2">
           <NavItem to="/app/dashboard" label="Dashboard" />
-          <NavItem to="/app/org-setup" label="Org Setup" />
+          {role === 'admin' && <NavItem to="/app/org-setup" label="Org Setup" />}
           <NavItem to="/app/assets" label="Asset Directory" />
           <NavItem to="/app/allocation" label="Allocation & Transfers" />
           <NavItem to="/app/booking" label="Resource Booking" />

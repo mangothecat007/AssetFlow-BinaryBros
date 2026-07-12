@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Wrench, Clock, Loader2 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, userStore } from "@/lib/api";
 import toast from "react-hot-toast";
 
 const MaintenanceView = () => {
@@ -97,6 +97,9 @@ const KanbanColumn = ({ title, count, color, children }) => {
 const KanbanCard = ({ t, onUpdate }) => {
   const pColor = t.priority === "High" ? "text-red-600 bg-red-50" : t.priority === "Medium" ? "text-amber-600 bg-amber-50" : "text-emerald-600 bg-emerald-50";
 
+  const role = userStore.getRole();
+  const isManager = role === "admin" || role === "Asset Manager";
+
   const updateStatus = async (newStatus) => {
     try {
       await api.patch(`/maintenance/${t.id}/status`, { status: newStatus });
@@ -122,10 +125,10 @@ const KanbanCard = ({ t, onUpdate }) => {
           </div>
         </div>
         <div className="flex gap-2">
-          {t.status === "Pending Approval" && (
+          {t.status === "Pending Approval" && isManager && (
             <button onClick={() => updateStatus("Approved")} className="flex-1 bg-amber-100 hover:bg-amber-200 text-amber-800 text-[10px] font-bold py-1 rounded">Approve</button>
           )}
-          {t.status === "Approved" && (
+          {t.status === "Approved" && isManager && (
             <button onClick={() => updateStatus("In Progress")} className="flex-1 bg-blue-100 hover:bg-blue-200 text-blue-800 text-[10px] font-bold py-1 rounded">Assign Tech</button>
           )}
           {t.status === "In Progress" && (

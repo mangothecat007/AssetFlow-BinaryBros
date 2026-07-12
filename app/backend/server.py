@@ -403,6 +403,14 @@ async def get_activity_logs():
             "timestamp": au.get("start_date", datetime.now().isoformat())
         })
         
+    # Mock Booking Reminders
+    logs.append({
+        "id": "log_reminder_1",
+        "type": "allocation",
+        "message": "Reminder: Room B2 booking starts in 1 hour.",
+        "timestamp": datetime.now().isoformat()
+    })
+        
     logs = sorted(logs, key=lambda x: x["timestamp"], reverse=True)
     return logs
 
@@ -432,10 +440,27 @@ async def get_reports():
         {"dept": "Warehouse", "percentage": 85},
     ]
     
+    # Mock Retirement List (Assets nearing end of life)
+    retirement_list = [
+        {"id": "AF-0012", "name": "Dell OptiPlex", "age_years": 4, "condition": "Poor"},
+        {"id": "AF-0045", "name": "Office Printer", "age_years": 5, "condition": "Damaged"},
+    ]
+    
+    # Mock Booking Heatmap (Peak usage windows)
+    booking_heatmap = [
+        {"day": "Mon", "hours": [20, 40, 80, 90, 60, 30]},
+        {"day": "Tue", "hours": [30, 50, 85, 95, 70, 40]},
+        {"day": "Wed", "hours": [40, 60, 90, 80, 65, 45]},
+        {"day": "Thu", "hours": [35, 55, 75, 85, 50, 35]},
+        {"day": "Fri", "hours": [25, 45, 60, 50, 30, 20]}
+    ]
+    
     return {
         "category_breakdown": category_breakdown,
         "department_usage": dept_usage,
-        "maintenance_frequency": maintenance_freq
+        "maintenance_frequency": maintenance_freq,
+        "retirement_list": retirement_list,
+        "booking_heatmap": booking_heatmap
     }
 
 @api_router.get("/audits")
