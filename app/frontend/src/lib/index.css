@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    :root {
+        --background: 0 0% 3.9%;
+        --foreground: 0 0% 98%;
+        --card: 0 0% 3.9%;
+        --popover: 0 0% 3.9%;
+        --primary: 72 100% 50%;
+        /* #46C5A5 - Cyber Lime */
+        --primary-foreground: 0 0% 0%;
+        --border: 0 0% 14.9%;
+    }
+}
+
+/* Custom OneAlert Animations */
+@layer utilities {
+    .pulse-dot {
+        @apply relative flex h-2 w-2;
+    }
+
+    .pulse-dot::after {
+        content: "";
+        @apply absolute inline-flex h-full w-full rounded-full bg-[#00FF66] opacity-75 animate-ping;
+    }
+
+    .glass-header {
+        @apply bg-[#0A0A0A]/80 backdrop-blur-md border-b border-neutral-800;
+    }
+}
+
+/* Custom Scrollbar for the Cyberpunk feel */
+::-webkit-scrollbar {
+    width: 5px;
+}
+
+::-webkit-scrollbar-track {
+    background: #0a0a0a;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #1a1a1a;
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #46c5a5;
+}
+
+.xterm-viewport {
+    /* Ensure the touch surface is active for scrolling */
+    touch-action: pan-y !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: none !important;
+
+    /* Smooth scrolling for iOS */
+}
+
+/* Ensure the helper textarea doesn't mess with layout on focus */
+.xterm-helper-textarea {
+    touch-action: none;
+}

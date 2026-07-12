@@ -1,0 +1,9 @@
+To make an element vertically resizable so that it physically pushes other elements in a Flexbox layout (instead of just expanding and overlapping them), you must move the resizing responsibility from the inner component to a flex-aware wrapper.
+
+1. Remove strict flex ratios (`flex-[45]`, `flex-1`) from the element you want to resize.
+2. Wrap the component in a `div` and apply `shrink-0` (so Flexbox doesn't forcefully shrink it), `resize-y` (to add the drag handle), and `overflow-hidden` (required for CSS resize to work).
+3. Set an explicit starting height using an inline style, for example: `style={{ height: '45%' }}`.
+4. Ensure the inner component is set to fill the wrapper (e.g., `h-full`).
+5. Ensure sibling elements are set to fill the remaining space flexibly (e.g., `flex-1`) or also have `shrink-0` if they need to be resizable too.
+
+When the user drags the bottom edge of the wrapper, the browser injects an inline `style="height: XXXpx"`. Because the element is `shrink-0`, this explicit pixel height is respected by the Flex layout, physically pushing sibling elements down to negotiate the available space.

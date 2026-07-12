@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">onealert</string>
+    <string name="title_activity_main">onealert</string>
+    <string name="package_name">com.onealert.app</string>
+    <string name="custom_url_scheme">com.onealert.app</string>
+</resources>

@@ -1,0 +1,268 @@
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    /* Dynamic Primary Color */
+    --primary: #46c5a5;
+    --primary-rgb: 70, 197, 165;
+
+    /* Dark Theme (Default) */
+    --bg: #050505;
+    --surface: #0a0a0a;
+    --surface-hover: #141414;
+    --border: #262626;
+    --text-primary: #ffffff;
+    --text-secondary: #a3a3a3;
+
+    --danger: #ff3b30;
+    --warn: #ff9900;
+    --success: #00ff66;
+
+    --grid-opacity: 0.015;
+    --grid-color: 255, 255, 255;
+    --selection-bg: rgba(255, 255, 255, 0.2);
+    --selection-text: #ffffff;
+
+    /* Typography Scale (Desktop Default) */
+    --font-size-2xs: 12px;
+    --font-size-xs: 14px;
+    --font-size-sm: 15px;
+    --font-size-base: 16px;
+    --font-size-lg: 19px;
+    --font-size-xl: 22px;
+    --font-size-2xl: 26px;
+    --font-size-3xl: 32px;
+}
+
+@media (max-width: 768px) {
+    :root {
+        /* Reduce body text on mobile */
+        --font-size-2xs: 11px;
+        --font-size-xs: 13px;
+        --font-size-sm: 14px;
+        --font-size-base: 15px;
+        /* Headings scale less aggressively */
+        --font-size-lg: 18px;
+        --font-size-xl: 20px;
+    }
+}
+
+[data-theme="light"] {
+    --bg: #eeecdd;
+    /* warm parchment base */
+    --surface: #e4e2d1;
+    /* soft cream surface */
+    --surface-hover: #ede8df;
+    /* slightly deeper cream on hover */
+    --border: #d6cfc4;
+    /* warm taupe border */
+    --text-primary: #1a1612;
+    /* warm near-black, not pure black */
+    --text-secondary: #6b5f52;
+    /* warm brown-grey secondary */
+    --grid-opacity: 0.06;
+    --grid-color: 80, 60, 40;
+    --selection-bg: #c8bfb2;
+    --selection-text: #1a1612;
+    --danger: #c0392b;
+    /* slightly muted red for light bg */
+    --warn: #d68910;
+    /* warm amber */
+    --success: #1e8449;
+    /* forest green */
+}
+
+[data-theme="grey"] {
+    --bg: #171717;
+    --surface: #1e1e1e;
+    --surface-hover: #262626;
+    --border: #333333;
+    --text-primary: #ffffff;
+    --text-secondary: #a3a3a3;
+    --grid-opacity: 0.02;
+    --grid-color: 255, 255, 255;
+    --selection-bg: rgba(255, 255, 255, 0.18);
+    --selection-text: #ffffff;
+}
+
+* {
+    scroll-behavior: smooth;
+}
+
+html {
+    /* Bump browser base so 1rem = 16px, Tailwind sizes scale up proportionally */
+    font-size: 16px;
+}
+
+html,
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: "JetBrains Mono", ui-monospace, Menlo, monospace;
+    font-size: var(--font-size-base);
+    line-height: 1.6;
+    transition:
+        background 0.3s ease,
+        color 0.3s ease;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+.font-display {
+    font-family: "Outfit", ui-sans-serif, system-ui, sans-serif;
+}
+
+.font-mono {
+    font-family: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--surface-hover);
+}
+
+::selection {
+    background: var(--selection-bg);
+    color: var(--selection-text);
+}
+
+@layer base {
+    * {
+        border-color: var(--border);
+    }
+
+    /* Neutral grays always map to secondary text so they adapt to theme */
+    .text-neutral-400,
+    .text-neutral-500,
+    .text-neutral-600,
+    .text-gray-400,
+    .text-gray-500,
+    .text-gray-600 {
+        color: var(--text-secondary) !important;
+    }
+
+    /* Inputs, selects, textareas — always use theme text */
+    input:not([type="range"]),
+    select,
+    textarea,
+    option {
+        color: var(--text-primary);
+    }
+
+    input::placeholder,
+    textarea::placeholder {
+        color: var(--text-secondary);
+        opacity: 0.7;
+    }
+}
+
+.grid-overlay {
+    background-image:
+        linear-gradient(rgba(var(--grid-color), var(--grid-opacity)) 1px,
+            transparent 1px),
+        linear-gradient(90deg,
+            rgba(var(--grid-color), var(--grid-opacity)) 1px,
+            transparent 1px);
+    background-size: 48px 48px;
+}
+
+@keyframes pulse-dot {
+
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 0.4;
+        transform: scale(1.4);
+    }
+}
+
+.pulse-dot {
+    animation: pulse-dot 1.6s ease-in-out infinite;
+}
+
+@keyframes fade-up {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-up {
+    animation: fade-up 0.5s ease-out both;
+}
+
+input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    outline: none;
+    cursor: pointer;
+
+    /* sharp split at progress point */
+    background: linear-gradient(to right,
+            var(--primary) 0%,
+            var(--primary) var(--progress, 0%),
+            var(--border) var(--progress, 0%),
+            var(--border) 100%);
+}
+
+/* Track (transparent so gradient shows) */
+input[type="range"]::-webkit-slider-runnable-track {
+    height: 6px;
+    background: transparent;
+    border-radius: 3px;
+}
+
+/* Thumb */
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--primary);
+    border: 2px solid var(--surface);
+    margin-top: -5px;
+    position: relative;
+    z-index: 2;
+}
+
+.xterm-viewport {
+    touch-action: pan-y !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: none !important;
+    /* Smooth scrolling for iOS */
+}
+
+/* Ensure the helper textarea doesn't mess with layout on focus */
+.xterm-helper-textarea {
+    touch-action: none;
+}
