@@ -9,6 +9,11 @@ source venv/bin/activate        # On Windows: venv\Scripts\activate
 # 2. Install dependencies and run the database setup script
 pip install -r requirements.txt
 python db_setup.py
+
+or 
+
+pip install pymongo && python db_setup.py
+
 """
 
 import os
