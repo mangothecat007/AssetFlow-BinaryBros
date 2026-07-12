@@ -1,6 +1,19 @@
 """
 AssetFlow Database Setup Script
 Run this script to create the entire database schema, indexes, and seed data.
+
+# 1. Create and activate a Python virtual environment
+python -m venv venv
+source venv/bin/activate        # On Windows: venv\Scripts\activate
+
+# 2. Install dependencies and run the database setup script
+pip install -r requirements.txt
+python db_setup.py
+
+or 
+
+pip install pymongo && python db_setup.py
+
 """
 
 import os
