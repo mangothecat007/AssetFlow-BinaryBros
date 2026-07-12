@@ -327,6 +327,18 @@ async def create_booking(booking: Booking):
     await db.db.bookings.insert_one(booking.model_dump())
     return {"status": "success", "id": booking.id}
 
+# --- NOTIFICATIONS ---
+async def create_notification(recipient: str, title: str, message: str, notif_type: str):
+    await db.db.notifications.insert_one({
+        "id": f"notif_{uuid.uuid4().hex[:8]}",
+        "recipient": recipient,
+        "title": title,
+        "message": message,
+        "type": notif_type,
+        "is_read": False,
+        "created_at": datetime.now().isoformat()
+    })
+
 # --- MAINTENANCE ---
 @api_router.get("/maintenance")
 async def get_maintenance():
@@ -354,9 +366,11 @@ async def update_maintenance_status(req_id: str, payload: dict):
     if new_status == "Approved":
         await db.db.assets.update_one({"id": req["asset_id"]}, {"$set": {"status": "Under Maintenance"}})
         await record_lifecycle_event(req["asset_id"], old_status, "Under Maintenance", "maintenance", req_id, "system", "Maintenance started")
+        await create_notification(req["reported_by"], "Maintenance Approved", f"Your request for {req['asset_id']} has been approved.", "maintenance_approved")
     elif new_status == "Resolved":
         await db.db.assets.update_one({"id": req["asset_id"]}, {"$set": {"status": "Available"}})
         await record_lifecycle_event(req["asset_id"], old_status, "Available", "maintenance", req_id, "system", "Maintenance resolved")
+        await create_notification(req["reported_by"], "Maintenance Resolved", f"Maintenance for {req['asset_id']} is complete.", "maintenance_resolved")
         
     return {"status": "success"}
 
@@ -630,5 +644,20 @@ async def update_audit(cycle_id: str, payload: dict = Body(...)):
                 
     await db.db.audits.update_one({"id": cycle_id}, {"$set": {"status": payload["status"]}})
     return {"message": "Audit updated"}
+
+@api_router.patch("/audits/{audit_id}/close")
+async def close_audit(audit_id: str):
+    await db.db.audits.update_one({"id": audit_id}, {"$set": {"status": "Closed", "closed_at": datetime.now().isoformat()}})
+    return {"status": "success"}
+
+@api_router.get("/notifications/{username}")
+async def get_notifications(username: str):
+    cursor = db.db.notifications.find({"recipient": username}, {"_id": 0}).sort("created_at", -1).limit(50)
+    return await cursor.to_list(length=None)
+
+@api_router.patch("/notifications/{notif_id}/read")
+async def mark_notification_read(notif_id: str):
+    await db.db.notifications.update_one({"id": notif_id}, {"$set": {"is_read": True}})
+    return {"status": "success"}
 
 app.include_router(api_router)
