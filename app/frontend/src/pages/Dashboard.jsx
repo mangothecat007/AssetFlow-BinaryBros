@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { 
-  Package, Wrench, ShieldAlert, CheckCircle2, TrendingUp, Clock
+  Package, Wrench, ShieldAlert, CheckCircle2, TrendingUp, Clock, CalendarDays, Undo2
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
@@ -10,7 +10,9 @@ const Dashboard = () => {
     total_assets: 0,
     allocated_assets: 0,
     maintenance_active: 0,
-    overdue_returns: 0
+    overdue_returns: 0,
+    active_bookings: 0,
+    upcoming_returns: 0
   });
   const [activity, setActivity] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -41,9 +43,11 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 mb-8">
         <StatCard title="Total Assets" value={loading ? "..." : stats.total_assets} trend="+12" icon={<Package className="w-5 h-5 text-blue-600" />} color="blue" />
         <StatCard title="Allocated" value={loading ? "..." : stats.allocated_assets} trend="+5" icon={<CheckCircle2 className="w-5 h-5 text-emerald-600" />} color="emerald" />
+        <StatCard title="Active Bookings" value={loading ? "..." : stats.active_bookings} trend="+2" icon={<CalendarDays className="w-5 h-5 text-indigo-600" />} color="indigo" />
+        <StatCard title="Upcoming Returns" value={loading ? "..." : stats.upcoming_returns} trend="+3" icon={<Undo2 className="w-5 h-5 text-amber-600" />} color="amber" />
         <StatCard title="Maintenance" value={loading ? "..." : stats.maintenance_active} trend="-2" icon={<Wrench className="w-5 h-5 text-amber-600" />} color="amber" />
         <StatCard title="Overdue Returns" value={loading ? "..." : stats.overdue_returns} trend="+1" icon={<ShieldAlert className="w-5 h-5 text-red-600" />} color="red" />
       </div>
@@ -101,6 +105,7 @@ const StatCard = ({ title, value, trend, icon, color }) => {
     emerald: "bg-emerald-50 border-emerald-100",
     amber: "bg-amber-50 border-amber-100",
     red: "bg-red-50 border-red-100",
+    indigo: "bg-indigo-50 border-indigo-100",
   };
   return (
     <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm relative overflow-hidden group hover:shadow-md transition-shadow">

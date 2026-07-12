@@ -369,16 +369,30 @@ async def cache_dashboard_metrics():
             maintenance = await db.db.assets.count_documents({"status": "Under Maintenance"})
             
             today_str = datetime.now().strftime("%Y-%m-%d")
+            from datetime import timedelta
+            next_week_str = (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d")
+            
             overdue_count = await db.db.allocations.count_documents({
                 "status": "Active",
                 "expected_return_date": {"$lt": today_str, "$ne": None}
+            })
+            
+            upcoming_returns = await db.db.allocations.count_documents({
+                "status": "Active",
+                "expected_return_date": {"$gte": today_str, "$lte": next_week_str}
+            })
+            
+            active_bookings = await db.db.bookings.count_documents({
+                "status": {"$in": ["Confirmed", "Ongoing", "Upcoming"]}
             })
             
             metrics = {
                 "total_assets": total_assets,
                 "allocated_assets": allocated,
                 "maintenance_active": maintenance,
-                "overdue_returns": overdue_count
+                "overdue_returns": overdue_count,
+                "active_bookings": active_bookings,
+                "upcoming_returns": upcoming_returns
             }
             
             await db.db.dashboard_metrics.update_one(
@@ -403,7 +417,9 @@ async def get_dashboard_metrics():
             "total_assets": await db.db.assets.count_documents({}),
             "allocated_assets": await db.db.assets.count_documents({"status": "Allocated"}),
             "maintenance_active": await db.db.assets.count_documents({"status": "Under Maintenance"}),
-            "overdue_returns": 0
+            "overdue_returns": 0,
+            "active_bookings": 0,
+            "upcoming_returns": 0
         }
     
     allocs = await db.db.allocations.find({}, {"_id": 0}).sort("allocation_date", -1).limit(3).to_list(length=3)
