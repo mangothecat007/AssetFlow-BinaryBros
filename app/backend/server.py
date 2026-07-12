@@ -529,7 +529,6 @@ async def get_audits():
 
 @api_router.post("/audits")
 async def create_audit(payload: dict):
-    # payload: { name, department_id, start_date, end_date, auditors: [] }
     audit = {
         "id": f"audit_{uuid.uuid4().hex[:8]}",
         "name": payload.get("name"),
@@ -538,206 +537,10 @@ async def create_audit(payload: dict):
         "end_date": payload.get("end_date"),
         "auditors": payload.get("auditors", []),
         "status": "Active",
-        "verifications": [] # [{asset_id, status (Verified/Missing/Damaged)}]
+        "verifications": [] 
     }
     
-    # Pre-populate with assets that belong to this department (or all if no dept)
-    query = {} if not payload.get("department_id") else {"location": payload.get("department_id")} # simplified grouping
-    assets = await db.db.assets.find(query).to_list(length=None)
-    for a in assets:
-        await db.db.assets.update_one({"id": req["asset_id"]}, {"$set": {"status": "Under Maintenance"}})
-        await record_lifecycle_event(req["asset_id"], old_status, "Under Maintenance", "maintenance", req_id, "system", "Maintenance started")
-    elif new_status == "Resolved":
-        await db.db.assets.update_one({"id": req["asset_id"]}, {"$set": {"status": "Available"}})
-        await record_lifecycle_event(req["asset_id"], old_status, "Available", "maintenance", req_id, "system", "Maintenance resolved")
-        
-    return {"status": "success"}
-
-# --- ANALYTICS & AUDIT ---
-async def cache_dashboard_metrics():
-    while True:
-        try:
-            total_assets = await db.db.assets.count_documents({})
-            allocated = await db.db.assets.count_documents({"status": "Allocated"})
-            maintenance = await db.db.assets.count_documents({"status": "Under Maintenance"})
-            
-            today_str = datetime.now().strftime("%Y-%m-%d")
-            overdue_count = await db.db.allocations.count_documents({
-                "status": "Active",
-                "expected_return_date": {"$lt": today_str, "$ne": None}
-            })
-            
-            metrics = {
-                "total_assets": total_assets,
-                "allocated_assets": allocated,
-                "maintenance_active": maintenance,
-                "overdue_returns": overdue_count
-            }
-            
-            await db.db.dashboard_metrics.update_one(
-                {"id": "global_metrics"},
-                {"$set": {"metrics": metrics, "computed_at": datetime.now().isoformat()}},
-                upsert=True
-            )
-            print("Dashboard metrics cached.")
-        except Exception as e:
-            print(f"Error caching metrics: {e}")
-        
-        await asyncio.sleep(300) # Run every 5 mins
-
-@api_router.get("/analytics/dashboard")
-async def get_dashboard_metrics():
-    cached = await db.db.dashboard_metrics.find_one({"id": "global_metrics"})
-    if cached:
-        metrics = cached["metrics"]
-    else:
-        # Fallback if not cached yet
-        metrics = {
-            "total_assets": await db.db.assets.count_documents({}),
-            "allocated_assets": await db.db.assets.count_documents({"status": "Allocated"}),
-            "maintenance_active": await db.db.assets.count_documents({"status": "Under Maintenance"}),
-            "overdue_returns": 0
-        }
-    
-    allocs = await db.db.allocations.find({}, {"_id": 0}).sort("allocation_date", -1).limit(3).to_list(length=3)
-    maints = await db.db.maintenance.find({}, {"_id": 0}).sort("reported_at", -1).limit(2).to_list(length=2)
-    
-    activity = []
-    for a in allocs:
-        activity.append({
-            "id": a["id"], 
-            "type": "allocation",
-            "message": f"Asset {a['asset_id']} allocated to {a['allocated_to']}",
-            "timestamp": a.get("allocation_date", datetime.now().isoformat())
-        })
-    for m in maints:
-         activity.append({
-            "id": m["id"], 
-            "type": "maintenance",
-            "message": f"Maintenance requested for {m['asset_id']} ({m['issue_description']})",
-            "timestamp": m.get("reported_at", datetime.now().isoformat())
-        })
-    
-    activity.sort(key=lambda x: x["timestamp"], reverse=True)
-    
-    return {
-        "metrics": metrics,
-        "recent_activity": activity[:5]
-    }
-
-@api_router.get("/activity_logs")
-async def get_activity_logs():
-    allocs = await db.db.allocations.find({}, {"_id": 0}).to_list(length=None)
-    maints = await db.db.maintenance.find({}, {"_id": 0}).to_list(length=None)
-    audits = await db.db.audits.find({}, {"_id": 0}).to_list(length=None)
-    
-    logs = []
-    
-    for a in allocs:
-        logs.append({
-            "id": f"log_{a['id']}",
-            "type": "allocation",
-            "message": f"Asset {a['asset_id']} {a['status'].lower()} ({a['allocated_to']})",
-            "timestamp": a.get("allocation_date", datetime.now().isoformat())
-        })
-        
-    for m in maints:
-        logs.append({
-            "id": f"log_{m['id']}",
-            "type": "maintenance",
-            "message": f"Maintenance ticket {m['status'].lower()} for Asset {m['asset_id']}",
-            "timestamp": m.get("reported_at", datetime.now().isoformat())
-        })
-        
-    for au in audits:
-        logs.append({
-            "id": f"log_{au['id']}",
-            "type": "audit",
-            "message": f"Audit Cycle '{au['name']}' is {au['status']}",
-            "timestamp": au.get("start_date", datetime.now().isoformat())
-        })
-        
-    # Mock Booking Reminders
-    logs.append({
-        "id": "log_reminder_1",
-        "type": "allocation",
-        "message": "Reminder: Room B2 booking starts in 1 hour.",
-        "timestamp": datetime.now().isoformat()
-    })
-        
-    logs = sorted(logs, key=lambda x: x["timestamp"], reverse=True)
-    return logs
-
-@api_router.get("/analytics/reports")
-async def get_reports():
-    # Group assets by category for a breakdown
-    pipeline = [
-        {"$group": {"_id": "$category_id", "count": {"$sum": 1}}}
-    ]
-    cursor = db.db.assets.aggregate(pipeline)
-    category_breakdown = await cursor.to_list(length=None)
-    
-    # Calculate Maintenance Frequency (number of tickets per asset category or just total)
-    maintenance_cursor = db.db.maintenance.aggregate([
-        {"$group": {"_id": "$asset_id", "count": {"$sum": 1}}},
-        {"$sort": {"count": -1}},
-        {"$limit": 5}
-    ])
-    maintenance_freq = await maintenance_cursor.to_list(length=None)
-
-    # Mock department usage based on allocation data
-    # (Since departments are loose strings in this system right now)
-    dept_usage = [
-        {"dept": "IT Dept", "percentage": 75},
-        {"dept": "Operations", "percentage": 45},
-        {"dept": "HR", "percentage": 20},
-        {"dept": "Warehouse", "percentage": 85},
-    ]
-    
-    # Mock Retirement List (Assets nearing end of life)
-    retirement_list = [
-        {"id": "AF-0012", "name": "Dell OptiPlex", "age_years": 4, "condition": "Poor"},
-        {"id": "AF-0045", "name": "Office Printer", "age_years": 5, "condition": "Damaged"},
-    ]
-    
-    # Mock Booking Heatmap (Peak usage windows)
-    booking_heatmap = [
-        {"day": "Mon", "hours": [20, 40, 80, 90, 60, 30]},
-        {"day": "Tue", "hours": [30, 50, 85, 95, 70, 40]},
-        {"day": "Wed", "hours": [40, 60, 90, 80, 65, 45]},
-        {"day": "Thu", "hours": [35, 55, 75, 85, 50, 35]},
-        {"day": "Fri", "hours": [25, 45, 60, 50, 30, 20]}
-    ]
-    
-    return {
-        "category_breakdown": category_breakdown,
-        "department_usage": dept_usage,
-        "maintenance_frequency": maintenance_freq,
-        "retirement_list": retirement_list,
-        "booking_heatmap": booking_heatmap
-    }
-
-@api_router.get("/audits")
-async def get_audits():
-    cursor = db.db.audits.find({}, {"_id": 0})
-    return await cursor.to_list(length=None)
-
-@api_router.post("/audits")
-async def create_audit(payload: dict):
-    # payload: { name, department_id, start_date, end_date, auditors: [] }
-    audit = {
-        "id": f"audit_{uuid.uuid4().hex[:8]}",
-        "name": payload.get("name"),
-        "department_id": payload.get("department_id"),
-        "start_date": payload.get("start_date"),
-        "end_date": payload.get("end_date"),
-        "auditors": payload.get("auditors", []),
-        "status": "Active",
-        "verifications": [] # [{asset_id, status (Verified/Missing/Damaged)}]
-    }
-    
-    # Pre-populate with assets that belong to this department (or all if no dept)
-    query = {} if not payload.get("department_id") else {"location": payload.get("department_id")} # simplified grouping
+    query = {} if not payload.get("department_id") else {"location": payload.get("department_id")}
     assets = await db.db.assets.find(query).to_list(length=None)
     for a in assets:
         audit["verifications"].append({"asset_id": a["id"], "asset_name": a["name"], "status": "Pending"})
@@ -745,38 +548,24 @@ async def create_audit(payload: dict):
     await db.db.audits.insert_one(audit)
     return {"status": "success", "id": audit["id"]}
 
-@api_router.patch("/audits/{audit_id}")
-async def update_audit(audit_id: str, payload: dict):
-    # Action can be 'verify_asset' or 'close_cycle'
-    action = payload.get("action")
-    audit = await db.db.audits.find_one({"id": audit_id})
-    if not audit:
-        raise HTTPException(status_code=404, detail="Audit not found")
-        
-    if action == "verify_asset":
-        asset_id = payload.get("asset_id")
-        status = payload.get("status") # Verified, Missing, Damaged
-        
-        # update the specific verification item inside the array
-        await db.db.audits.update_one(
-            {"id": audit_id, "verifications.asset_id": asset_id},
-            {"$set": {"verifications.$.status": status}}
-        )
-    elif action == "close_cycle":
-        # Any missing/damaged assets get their master status updated
-        for v in audit["verifications"]:
-            if v["status"] == "Missing":
-                old_status = (await db.db.assets.find_one({"id": v["asset_id"]})).get("status", "Unknown")
-                await db.db.assets.update_one({"id": v["asset_id"]}, {"$set": {"status": "Lost"}})
-                await record_lifecycle_event(v["asset_id"], old_status, "Lost", "audit", audit_id, "system", "Marked missing in audit")
-            elif v["status"] == "Damaged":
-                old_status = (await db.db.assets.find_one({"id": v["asset_id"]})).get("status", "Unknown")
-                await db.db.assets.update_one({"id": v["asset_id"]}, {"$set": {"status": "Under Maintenance"}})
-                await record_lifecycle_event(v["asset_id"], old_status, "Under Maintenance", "audit", audit_id, "system", "Marked damaged in audit")
-                # Auto-generate maintenance ticket
+@api_router.patch("/audits/{cycle_id}")
+async def update_audit(cycle_id: str, payload: dict = Body(...)):
+    if payload.get("status") == "Closed":
+        cycle = await db.db.audits.find_one({"id": cycle_id})
+        items = cycle.get("items", [])
+        for item in items:
+            asset = await db.db.assets.find_one({"id": item["asset_id"]})
+            old_status = asset.get("status", "Available") if asset else "Unknown"
+            
+            if item["status"] == "Missing":
+                await db.db.assets.update_one({"id": item["asset_id"]}, {"$set": {"status": "Lost"}})
+                await record_lifecycle_event(item["asset_id"], old_status, "Lost", "audit", cycle_id, "system", "Marked missing in audit")
+            elif item["status"] == "Damaged":
+                await db.db.assets.update_one({"id": item["asset_id"]}, {"$set": {"status": "Under Maintenance"}})
+                await record_lifecycle_event(item["asset_id"], old_status, "Under Maintenance", "audit", cycle_id, "system", "Marked damaged in audit")
                 await db.db.maintenance.insert_one({
                     "id": f"mt_{int(datetime.now().timestamp()*1000)}",
-                    "asset_id": v["asset_id"],
+                    "asset_id": item["asset_id"],
                     "reported_by": "Audit System",
                     "issue": "Damaged during audit",
                     "priority": "High",
@@ -784,8 +573,7 @@ async def update_audit(audit_id: str, payload: dict):
                     "reported_at": datetime.now().isoformat()
                 })
                 
-        await db.db.audits.update_one({"id": audit_id}, {"$set": {"status": "Closed"}})
-        
-    return {"status": "success"}
+    await db.db.audits.update_one({"id": cycle_id}, {"$set": {"status": payload["status"]}})
+    return {"message": "Audit updated"}
 
 app.include_router(api_router)
