@@ -57,21 +57,21 @@ const AppLayout = () => {
         </div>
         <nav className="flex flex-col gap-2">
           <NavItem to="/app/dashboard" label="Dashboard" />
-          {role === 'admin' && <NavItem to="/app/org-setup" label="Org Setup" />}
+          {(role?.toLowerCase() === 'admin') && <NavItem to="/app/org-setup" label="Org Setup" />}
           <NavItem to="/app/assets" label="Asset Directory" />
           
-          {(role === 'admin' || role === 'Asset Manager' || role === 'Department Head') && (
+          {(role?.toLowerCase() === 'admin' || role?.toLowerCase() === 'asset manager' || role?.toLowerCase() === 'department head' || role?.toLowerCase() === 'employee') && (
             <NavItem to="/app/allocation" label="Allocation & Transfers" />
           )}
           
           <NavItem to="/app/booking" label="Resource Booking" />
           <NavItem to="/app/maintenance" label="Maintenance" />
           
-          {(role === 'admin' || role === 'Asset Manager') && (
+          {(role?.toLowerCase() === 'admin' || role?.toLowerCase() === 'asset manager') && (
             <NavItem to="/app/audit" label="Asset Audit" />
           )}
           
-          {(role === 'admin' || role === 'Asset Manager') && (
+          {(role?.toLowerCase() === 'admin' || role?.toLowerCase() === 'asset manager') && (
             <NavItem to="/app/reports" label="Reports & Analytics" />
           )}
           

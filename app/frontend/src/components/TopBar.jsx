@@ -15,7 +15,7 @@ const ALL_PAGES = [
   { path: "dashboard",     label: "Dashboard",             roles: ["admin", "Asset Manager", "Department Head", "Employee"] },
   { path: "org-setup",     label: "Org Setup",             roles: ["admin"] },
   { path: "assets",        label: "Asset Directory",        roles: ["admin", "Asset Manager", "Department Head", "Employee"] },
-  { path: "allocation",    label: "Allocation & Transfers", roles: ["admin", "Asset Manager", "Department Head"] },
+  { path: "allocation",    label: "Allocation & Transfers", roles: ["admin", "Asset Manager", "Department Head", "Employee"] },
   { path: "booking",       label: "Resource Booking",       roles: ["admin", "Asset Manager", "Department Head", "Employee"] },
   { path: "maintenance",   label: "Maintenance",            roles: ["admin", "Asset Manager", "Department Head", "Employee"] },
   { path: "audit",         label: "Asset Audit",            roles: ["admin", "Asset Manager"] },
@@ -34,7 +34,7 @@ const TopBar = () => {
 
   // Filter pages allowed for this role
   const visiblePages = useMemo(
-    () => ALL_PAGES.filter(p => p.roles.includes(role)),
+    () => ALL_PAGES.filter(p => p.roles.map(r => r.toLowerCase()).includes(role?.toLowerCase())),
     [role]
   );
 
@@ -44,7 +44,7 @@ const TopBar = () => {
     : "AF";
 
   return (
-    <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 flex-shrink-0" style={{backgroundColor: '#ffffff', opacity: 1}}>
+    <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 flex-shrink-0 z-50 relative" style={{backgroundColor: '#ffffff', opacity: 1}}>
 
       {/* Left: page dropdown */}
       <DropdownMenu>
@@ -54,7 +54,7 @@ const TopBar = () => {
             <ChevronDown size={14} className="text-gray-400" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="min-w-[220px] bg-white border border-gray-200 shadow-lg rounded-lg">
+        <DropdownMenuContent align="start" className="min-w-[220px] bg-white border border-gray-200 shadow-lg rounded-lg z-50 relative">
           {visiblePages.map(p => (
             <DropdownMenuItem
               key={p.path}
