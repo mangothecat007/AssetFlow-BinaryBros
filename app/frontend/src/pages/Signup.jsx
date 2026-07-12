@@ -1,12 +1,14 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { api, userStore } from "@/lib/api";
+import { api } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import toast from "react-hot-toast";
 
 const Signup = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const { login } = useAuth();
   const navigate = useNavigate();
 
   const handleSignup = async (e) => {
@@ -24,10 +26,12 @@ const Signup = () => {
       const res = await api.post("/auth/signup", { email, password });
       toast.success(`Account created! You are assigned as ${res.data.role}`);
       // Auto-login after signup
-      const loginRes = await api.post("/auth/login", { email, password });
-      userStore.setToken(loginRes.data.access_token);
-      userStore.setRole(loginRes.data.role);
-      navigate("/app/dashboard");
+      const success = await login(email, password);
+      if (success) {
+        navigate("/app/dashboard");
+      } else {
+        navigate("/login");
+      }
     } catch (error) {
       toast.error(error.response?.data?.detail || "Signup failed");
     } finally {

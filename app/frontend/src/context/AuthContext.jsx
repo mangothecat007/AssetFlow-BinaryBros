@@ -72,13 +72,13 @@ export const AuthProvider = ({ children }) => {
     checkAuth();
   }, []);
 
-  const login = async (username, password) => {
+  const login = async (email, password) => {
     try {
       const response = await fetch(`${BACKEND_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ email, password }),
       });
 
       if (!response.ok) throw new Error("Invalid credentials");
@@ -97,10 +97,10 @@ export const AuthProvider = ({ children }) => {
 
       setRole(data.role);
       setScope(data.scope);
-      setUsername(data.username || username);
+      setUsername(data.username || email);
       userStore.setRole(data.role);
       userStore.setScope(data.scope);
-      userStore.setUsername(data.username || username);
+      userStore.setUsername(data.username || email);
       return true;
     } catch (err) {
       console.error("LOGIN FAILURE EXCEPTION:", err);

@@ -131,9 +131,8 @@ async def signup(login_data: LoginRequest):
     if existing:
         raise HTTPException(status_code=400, detail="Email already exists")
     
-    # Auto-assign 'admin' role if it's the very first user, otherwise 'Employee'
-    user_count = await db.db.users.count_documents({})
-    role = "admin" if user_count == 0 else "Employee"
+    # Signup creates an Employee account only (no role selection)
+    role = "Employee"
     
     new_user = {
         "id": f"u_{uuid.uuid4().hex[:8]}",
@@ -232,7 +231,10 @@ async def update_user_role(email: str, payload: dict):
     if not new_role:
         raise HTTPException(status_code=400, detail="Missing role")
     
-    scope = "view:dashboard read:data write:system" if new_role == "admin" else "view:dashboard read:data"
+    # Assign write:system scope to any manager/admin role
+    elevated_roles = ["admin", "Asset Manager", "Department Head"]
+    scope = "view:dashboard read:data write:system" if new_role in elevated_roles else "view:dashboard read:data"
+    
     await db.db.users.update_one(
         {"email": email}, 
         {"$set": {"role": new_role, "scope": scope}}

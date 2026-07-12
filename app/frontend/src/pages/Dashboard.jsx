@@ -86,7 +86,7 @@ const Dashboard = () => {
              <button onClick={() => navigate("/app/assets")} className="w-full text-left p-3 border border-gray-200 rounded-lg text-sm font-medium hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-colors">
                + Register New Asset
              </button>
-             <button onClick={() => navigate("/app/allocations")} className="w-full text-left p-3 border border-gray-200 rounded-lg text-sm font-medium hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700 transition-colors">
+             <button onClick={() => navigate("/app/allocation")} className="w-full text-left p-3 border border-gray-200 rounded-lg text-sm font-medium hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700 transition-colors">
                + Process Allocation
              </button>
              <button onClick={() => navigate("/app/maintenance")} className="w-full text-left p-3 border border-gray-200 rounded-lg text-sm font-medium hover:bg-amber-50 hover:border-amber-200 hover:text-amber-700 transition-colors">

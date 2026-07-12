@@ -15,7 +15,7 @@ import AuditView from "@/pages/AuditView.jsx";
 import ReportsView from "@/pages/ReportsView.jsx";
 import Notifications from "@/pages/Notifications.jsx";
 import { userStore } from "@/lib/api";
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import NotificationBell from "@/components/NotificationBell.jsx";
 
 const ProtectedRoute = ({ children }) => {
@@ -38,7 +38,15 @@ const NavItem = ({ to, label }) => (
 
 // Main ERP Layout
 const AppLayout = () => {
-  const role = userStore.getRole();
+  const { role, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async (e) => {
+    e.preventDefault();
+    await logout();
+    navigate("/login");
+  };
+
   return (
     <div className="flex h-screen bg-[#f3f4f6] text-gray-900">
       <aside className="w-64 bg-white border-r border-gray-200 p-4 hidden md:flex flex-col">
@@ -50,16 +58,27 @@ const AppLayout = () => {
           <NavItem to="/app/dashboard" label="Dashboard" />
           {role === 'admin' && <NavItem to="/app/org-setup" label="Org Setup" />}
           <NavItem to="/app/assets" label="Asset Directory" />
-          <NavItem to="/app/allocation" label="Allocation & Transfers" />
+          
+          {(role === 'admin' || role === 'Asset Manager' || role === 'Department Head') && (
+            <NavItem to="/app/allocation" label="Allocation & Transfers" />
+          )}
+          
           <NavItem to="/app/booking" label="Resource Booking" />
           <NavItem to="/app/maintenance" label="Maintenance" />
-          <NavItem to="/app/audit" label="Asset Audit" />
-          <NavItem to="/app/reports" label="Reports & Analytics" />
+          
+          {(role === 'admin' || role === 'Asset Manager') && (
+            <NavItem to="/app/audit" label="Asset Audit" />
+          )}
+          
+          {(role === 'admin' || role === 'Asset Manager') && (
+            <NavItem to="/app/reports" label="Reports & Analytics" />
+          )}
+          
           <NavItem to="/app/notifications" label="Notifications" />
         </nav>
         <div className="mt-auto p-4 border-t border-gray-100">
-          <p className="text-sm font-medium text-gray-800">Logged in as {role}</p>
-          <a href="/login" className="text-xs text-red-600 hover:underline mt-1 inline-block">Sign Out</a>
+          <p className="text-sm font-medium text-gray-800">Logged in as <span className="capitalize">{role}</span></p>
+          <button onClick={handleLogout} className="text-xs text-red-600 hover:underline mt-1 inline-block bg-transparent border-none p-0 cursor-pointer text-left">Sign Out</button>
         </div>
       </aside>
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
