@@ -13,6 +13,7 @@ const AllocationView = () => {
   const [returnDate, setReturnDate] = useState("");
   const [notes, setNotes] = useState("");
   const [users, setUsers] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [returnModal, setReturnModal] = useState({ open: false, allocId: "", notes: "" });
 
@@ -22,16 +23,18 @@ const AllocationView = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [aRes, alRes, txRes, uRes] = await Promise.all([
+        const [aRes, alRes, txRes, uRes, dRes] = await Promise.all([
           api.get("/assets"),
           api.get("/allocations"),
           api.get("/transfers"),
-          api.get("/users")
+          api.get("/users"),
+          api.get("/departments")
         ]);
         setAssets(aRes.data);
         setAllocations(alRes.data);
         setTransfers(txRes.data);
         setUsers(uRes.data);
+        setDepartments(dRes.data);
       } catch (e) {
         console.error(e);
       }
@@ -54,10 +57,12 @@ const AllocationView = () => {
           toast.success("Transfer request submitted!");
       } else {
           await api.post("/allocations", {
-            id: "alloc_" + Date.now(),
-            asset_id: selectedAsset,
-            allocated_to: targetEmployee,
-            expected_return_date: returnDate || null,
+            id: String("alloc_" + Date.now()),
+            asset_id: String(selectedAsset),
+            allocated_to: String(targetEmployee),
+            allocated_by: username ? String(username) : "System",
+            allocation_date: String(new Date().toISOString().split("T")[0]),
+            expected_return_date: returnDate ? String(returnDate) : null,
             status: "Active"
           });
           toast.success("Allocation processed!");
@@ -77,7 +82,9 @@ const AllocationView = () => {
       setTransfers(txRes.data);
       
     } catch (e) {
-      toast.error(e.response?.data?.detail || "Failed to process request");
+      const detail = e.response?.data?.detail;
+      const errMsg = typeof detail === "string" ? detail : (Array.isArray(detail) ? detail[0]?.msg : "Failed to process request");
+      toast.error(errMsg);
     } finally {
       setLoading(false);
     }
@@ -122,16 +129,23 @@ const AllocationView = () => {
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Allocate To (Employee)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Allocate To (Employee / Department)</label>
               <select 
                 value={targetEmployee}
                 onChange={(e) => setTargetEmployee(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-blue-500 bg-white text-gray-900" 
               >
-                <option value="">-- Choose Employee --</option>
-                {users.map(u => (
-                  <option key={u.email} value={u.email}>{u.name ? `${u.name} (${u.email})` : u.email}</option>
-                ))}
+                <option value="">-- Choose Assignee --</option>
+                <optgroup label="Departments">
+                  {departments.map(d => (
+                    <option key={d.id} value={d.name}>{d.name}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Employees">
+                  {users.map(u => (
+                    <option key={u.email} value={u.email}>{u.name ? `${u.name} (${u.email})` : u.email}</option>
+                  ))}
+                </optgroup>
               </select>
             </div>
 

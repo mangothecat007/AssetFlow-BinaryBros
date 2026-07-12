@@ -823,7 +823,25 @@ async def create_audit(
         "verifications": [] 
     }
     
-    query = {} if not payload.get("department_id") else {"location": payload.get("department_id")}
+    query = {}
+    dept_name = payload.get("department_id")
+    if dept_name:
+        dept = await db.db.departments.find_one({"name": dept_name})
+        allocated_asset_ids = []
+        if dept:
+            users_in_dept = await db.db.users.find({"department_id": dept["id"]}).to_list(length=None)
+            user_emails = [u.get("email") for u in users_in_dept]
+            search_targets = user_emails + [dept_name]
+            allocs = await db.db.allocations.find({"allocated_to": {"$in": search_targets}, "status": "Active"}).to_list(length=None)
+            allocated_asset_ids = [al["asset_id"] for al in allocs]
+            
+        query = {
+            "$or": [
+                {"location": dept_name},
+                {"id": {"$in": allocated_asset_ids}}
+            ]
+        }
+        
     assets = await db.db.assets.find(query).to_list(length=None)
     for a in assets:
         audit["verifications"].append({"asset_id": a["id"], "asset_name": a["name"], "status": "Pending"})

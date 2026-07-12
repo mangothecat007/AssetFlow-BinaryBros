@@ -190,24 +190,29 @@ const AssetDirectory = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredAssets.map(a => (
-                <tr key={a.id} className="hover:bg-gray-50 transition-colors text-sm text-gray-900 cursor-pointer">
-                  <td className="p-4 font-mono font-medium text-blue-600">{a.id}</td>
-                  <td className="p-4 font-medium">{a.name}</td>
-                  <td className="p-4 text-gray-600">
-                    {categories.find(c => c.id === a.category_id)?.name || a.category_id}
-                  </td>
-                  <td className="p-4 text-gray-600">{a.condition || "Good"}</td>
-                  <td className="p-4">
-                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                      a.status === 'Available' ? 'bg-emerald-100 text-emerald-800' :
-                      a.status === 'Allocated' ? 'bg-blue-100 text-blue-700' :
-                      'bg-amber-100 text-amber-800'
-                    }`}>{a.status}</span>
-                  </td>
-                  <td className="p-4 text-gray-600">{a.location}</td>
-                </tr>
-              ))}
+              {filteredAssets.map(a => {
+                const activeAlloc = allocations.find(al => al.asset_id === a.id && al.status === "Active");
+                return (
+                  <tr key={a.id} className="hover:bg-gray-50 transition-colors text-sm text-gray-900 cursor-pointer">
+                    <td className="p-4 font-mono font-medium text-blue-600">{a.id}</td>
+                    <td className="p-4 font-medium">{a.name}</td>
+                    <td className="p-4 text-gray-600">
+                      {categories.find(c => c.id === a.category_id)?.name || a.category_id}
+                    </td>
+                    <td className="p-4 text-gray-600">{a.condition || "Good"}</td>
+                    <td className="p-4">
+                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                        a.status === 'Available' ? 'bg-emerald-100 text-emerald-800' :
+                        a.status === 'Allocated' ? 'bg-blue-100 text-blue-700' :
+                        'bg-amber-100 text-amber-800'
+                      }`}>{a.status}</span>
+                    </td>
+                    <td className="p-4 text-gray-600">
+                      {activeAlloc ? <span className="font-semibold text-blue-700">Held by: {activeAlloc.allocated_to}</span> : a.location}
+                    </td>
+                  </tr>
+                );
+              })}
               {!loading && filteredAssets.length === 0 && (
                 <tr><td colSpan="6" className="p-8 text-center text-gray-500">No assets found matching your criteria.</td></tr>
               )}
