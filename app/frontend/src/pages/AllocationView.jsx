@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { ArrowRightLeft, ShieldAlert, Loader2 } from "lucide-react";
-import { api, userStore } from "@/lib/api";
+import { api } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import toast from "react-hot-toast";
 
 const AllocationView = () => {
@@ -11,23 +12,26 @@ const AllocationView = () => {
   const [targetEmployee, setTargetEmployee] = useState("");
   const [returnDate, setReturnDate] = useState("");
   const [notes, setNotes] = useState("");
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [returnModal, setReturnModal] = useState({ open: false, allocId: "", notes: "" });
 
-  const role = userStore.getRole();
+  const { role, username, departmentId } = useAuth();
   const isManager = role === "admin" || role === "Asset Manager" || role === "Department Head";
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [aRes, alRes, txRes] = await Promise.all([
+        const [aRes, alRes, txRes, uRes] = await Promise.all([
           api.get("/assets"),
           api.get("/allocations"),
-          api.get("/transfers")
+          api.get("/transfers"),
+          api.get("/users")
         ]);
         setAssets(aRes.data);
         setAllocations(alRes.data);
         setTransfers(txRes.data);
+        setUsers(uRes.data);
       } catch (e) {
         console.error(e);
       }
@@ -45,7 +49,7 @@ const AllocationView = () => {
       if (isAlreadyAllocated) {
           await api.post("/transfers", {
               asset_id: selectedAsset,
-              requested_by: targetEmployee,
+              requested_by: isManager ? targetEmployee : username,
           });
           toast.success("Transfer request submitted!");
       } else {
@@ -86,7 +90,9 @@ const AllocationView = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Allocation Form */}
+        {/* Left panel: differs by role */}
+      {isManager ? (
+        /* ---- MANAGER: Full Allocation Form ---- */
         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
           <h2 className="text-lg font-bold text-gray-800 mb-4 border-b pb-2">New Allocation</h2>
           <form className="space-y-4" onSubmit={handleSubmit}>
@@ -99,36 +105,31 @@ const AllocationView = () => {
               >
                 <option value="">-- Choose Asset --</option>
                 {assets.map(a => (
-                  <option key={a.id} value={a.id}>{a.id} - {a.name}</option>
+                  <option key={a.id} value={a.id}>{a.id} - {a.name} [{a.status}]</option>
                 ))}
               </select>
             </div>
-            
+
             {/* Conflict Warning */}
             {selectedAsset && allocations.find(al => al.asset_id === selectedAsset && al.status === "Active") && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex gap-3 text-red-800 text-sm">
                 <ShieldAlert className="w-5 h-5 flex-shrink-0" />
                 <div>
                   <p className="font-bold">Already Allocated</p>
-                  <p className="mt-1">Direct re-allocation might be blocked. Submitting will result in a transfer request.</p>
+                  <p className="mt-1">Submitting will create a Transfer Request instead.</p>
                 </div>
               </div>
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Transfer Request</label>
-              <div className="flex gap-4 items-center">
-                <div className="flex-1">
-                  <span className="text-xs text-gray-500">To Employee</span>
-                  <input 
-                    type="text" 
-                    value={targetEmployee}
-                    onChange={(e) => setTargetEmployee(e.target.value)}
-                    placeholder="e.g. Raj Kumar"
-                    className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-blue-500 bg-white text-gray-900" 
-                  />
-                </div>
-              </div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Allocate To (Employee)</label>
+              <input 
+                type="text" 
+                value={targetEmployee}
+                onChange={(e) => setTargetEmployee(e.target.value)}
+                placeholder="e.g. Raj Kumar"
+                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-blue-500 bg-white text-gray-900" 
+              />
             </div>
 
             <div>
@@ -148,15 +149,62 @@ const AllocationView = () => {
                 onChange={(e) => setNotes(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-blue-500" 
                 rows="3" 
-                placeholder="Explain why this transfer is needed..."
+                placeholder="Allocation reason or notes..."
               ></textarea>
             </div>
 
             <button type="submit" disabled={loading} className="bg-blue-600 disabled:opacity-50 text-white px-4 py-2 rounded-lg font-medium text-sm hover:bg-blue-700 transition-colors">
-              {loading ? <Loader2 className="w-4 h-4 animate-spin inline" /> : "Submit Request"}
+              {loading ? <Loader2 className="w-4 h-4 animate-spin inline" /> : "Submit"}
             </button>
           </form>
         </div>
+      ) : (
+        /* ---- EMPLOYEE: Transfer Request Only ---- */
+        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+          <h2 className="text-lg font-bold text-gray-800 mb-1 border-b pb-2">Request Transfer</h2>
+          <p className="text-xs text-gray-500 mb-4 mt-2">
+            Select an allocated asset and submit a transfer request. An Asset Manager will review it.
+          </p>
+          <form className="space-y-4" onSubmit={handleSubmit}>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Asset (already allocated)</label>
+              <select 
+                value={selectedAsset}
+                onChange={(e) => setSelectedAsset(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-blue-500 focus:border-blue-500 bg-white"
+              >
+                <option value="">-- Choose Asset --</option>
+                {/* Employee only sees currently allocated assets (to request transfer) */}
+                {assets.filter(a => allocations.some(al => al.asset_id === a.id && al.status === "Active")).map(a => (
+                  <option key={a.id} value={a.id}>{a.id} - {a.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {selectedAsset && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-blue-800 text-sm">
+                <p className="font-bold">Transfer Request</p>
+                <p className="mt-1 text-xs">An Asset Manager or Department Head will approve this before the asset is re-allocated.</p>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Your Name / Request Reason</label>
+              <input 
+                type="text" 
+                value={targetEmployee}
+                onChange={(e) => setTargetEmployee(e.target.value)}
+                placeholder="Reason for transfer (Name is auto-filled)"
+                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-blue-500 bg-white text-gray-900" 
+              />
+            </div>
+
+            <button type="submit" disabled={loading || !selectedAsset} className="bg-blue-600 disabled:opacity-50 text-white px-4 py-2 rounded-lg font-medium text-sm hover:bg-blue-700 transition-colors">
+              {loading ? <Loader2 className="w-4 h-4 animate-spin inline" /> : "Request Transfer"}
+            </button>
+          </form>
+        </div>
+      )}
 
         {/* History / Active Transfers */}
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm flex flex-col">
@@ -166,7 +214,16 @@ const AllocationView = () => {
           <div className="p-4 text-sm text-gray-600 space-y-3">
              
              {/* Pending Transfers */}
-             {transfers.filter(t => t.status === "Requested").map(tx => (
+             {transfers.filter(t => {
+                if (t.status !== "Requested") return false;
+                if (role === "admin" || role === "Asset Manager") return true;
+                if (role === "Employee") return t.requested_by === username;
+                if (role === "Department Head") {
+                   const u = users.find(usr => usr.email === t.requested_by || usr.name === t.requested_by);
+                   return u && u.department_id === departmentId;
+                }
+                return false;
+             }).map(tx => (
                <div key={tx.id} className="border border-blue-200 bg-blue-50/50 p-3 rounded-lg flex justify-between items-center mb-4">
                  <div>
                    <p className="font-medium text-gray-900">Transfer Request: Asset {tx.asset_id}</p>
@@ -194,7 +251,15 @@ const AllocationView = () => {
              ))}
 
              {/* Active Allocations */}
-             {allocations.map(al => (
+             {allocations.filter(al => {
+                if (role === "admin" || role === "Asset Manager") return true;
+                if (role === "Employee") return al.allocated_to === username;
+                if (role === "Department Head") {
+                   const u = users.find(usr => usr.email === al.allocated_to || usr.name === al.allocated_to);
+                   return u && u.department_id === departmentId;
+                }
+                return false;
+             }).map(al => (
                <div key={al.id} className="border-b border-gray-50 pb-3 flex justify-between items-center">
                  <div>
                    <p className="font-medium text-gray-900">Asset {al.asset_id} - Allocated to {al.allocated_to}</p>
@@ -204,13 +269,21 @@ const AllocationView = () => {
                    </p>
                  </div>
                  <div className="flex gap-2">
-                   {al.status === "Active" && (
+                   {al.status === "Active" && (role === "admin" || role === "Asset Manager") && (
                      <button onClick={() => setReturnModal({ open: true, allocId: al.id, notes: "" })} className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-md hover:bg-emerald-100 text-xs font-bold transition-colors">Mark Returned</button>
                    )}
                  </div>
                </div>
              ))}
-             {allocations.length === 0 && <p>No allocations recorded.</p>}
+              {allocations.filter(al => {
+                if (role === "admin" || role === "Asset Manager") return true;
+                if (role === "Employee") return al.allocated_to === username;
+                if (role === "Department Head") {
+                   const u = users.find(usr => usr.email === al.allocated_to || usr.name === al.allocated_to);
+                   return u && u.department_id === departmentId;
+                }
+                return false;
+              }).length === 0 && <p>No allocations recorded.</p>}
           </div>
         </div>
       </div>

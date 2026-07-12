@@ -175,7 +175,25 @@ async def login(login_data: LoginRequest, response: Response):
 
 @api_router.get("/auth/me")
 async def get_current_user(user: dict = Depends(verify_entry_token)):
-    return {"role": user["role"], "username": user.get("email")}
+    # Fetch from db to get full user data (including department_id)
+    db_user = await db.db.users.find_one({"email": user.get("email")})
+    return {
+        "role": user["role"], 
+        "username": user.get("email"),
+        "department_id": db_user.get("department_id") if db_user else None
+    }
+
+def role_required(*allowed_roles: str):
+    """Dependency factory — raises 403 if caller's role is not in allowed_roles."""
+    async def _check(user: dict = Depends(verify_entry_token)):
+        caller_role = user.get("role", "")
+        if caller_role not in allowed_roles:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Access denied. Required roles: {list(allowed_roles)}. Your role: {caller_role}"
+            )
+        return user
+    return _check
 
 # --- ASSETFLOW MODELS ---
 class UserInfo(BaseModel):
@@ -293,7 +311,9 @@ async def create_asset(
     serial_number: Optional[str] = Form(None),
     condition: str = Form("Good"),
     is_bookable: bool = Form(False),
-    photo: Optional[UploadFile] = File(None)
+    photo: Optional[UploadFile] = File(None),
+    # Only Asset Manager and Admin can register assets
+    _caller: dict = Depends(role_required("admin", "Asset Manager"))
 ):
     asset_count = await db.db.assets.count_documents({})
     asset_id = f"AF-{asset_count + 1:04d}"
@@ -437,7 +457,12 @@ async def request_transfer(payload: dict):
     return {"status": "success", "id": transfer["id"]}
 
 @api_router.patch("/transfers/{tx_id}/approve")
-async def approve_transfer(tx_id: str, payload: dict):
+async def approve_transfer(
+    tx_id: str,
+    payload: dict = Body(...),
+    # Only managers can approve/reject transfers
+    _caller: dict = Depends(role_required("admin", "Asset Manager", "Department Head"))
+):
     tx = await db.db.transfers.find_one({"id": tx_id})
     if not tx:
          raise HTTPException(status_code=404)
@@ -488,6 +513,20 @@ async def create_booking(booking: Booking):
     await db.db.bookings.insert_one(booking.model_dump())
     return {"status": "success", "id": booking.id}
 
+@api_router.patch("/bookings/{booking_id}")
+async def update_booking(booking_id: str, payload: dict = Body(...)):
+    """Cancel or reschedule a booking."""
+    update_data = {}
+    if "status" in payload:
+        update_data["status"] = payload["status"]
+    if "start_time" in payload:
+        update_data["start_time"] = payload["start_time"]
+    if "end_time" in payload:
+        update_data["end_time"] = payload["end_time"]
+    
+    await db.db.bookings.update_one({"id": booking_id}, {"$set": update_data})
+    return {"status": "success"}
+
 # --- NOTIFICATIONS ---
 async def create_notification(recipient: str, title: str, message: str, notif_type: str):
     await db.db.notifications.insert_one({
@@ -512,7 +551,12 @@ async def create_maintenance(req: MaintenanceRequest):
     return {"status": "success", "id": req.id}
 
 @api_router.patch("/maintenance/{req_id}/status")
-async def update_maintenance_status(req_id: str, payload: dict):
+async def update_maintenance_status(
+    req_id: str,
+    payload: dict = Body(...),
+    # Only Asset Manager and Admin can approve/reject/advance maintenance tickets
+    _caller: dict = Depends(role_required("admin", "Asset Manager"))
+):
     new_status = payload.get("status")
     if not new_status:
         raise HTTPException(status_code=400, detail="Missing status")
@@ -561,13 +605,16 @@ async def cache_dashboard_metrics():
                 "status": {"$in": ["Confirmed", "Ongoing", "Upcoming"]}
             })
             
+            pending_transfers = await db.db.transfers.count_documents({"status": "Requested"})
+            
             metrics = {
                 "total_assets": total_assets,
                 "allocated_assets": allocated,
                 "maintenance_active": maintenance,
                 "overdue_returns": overdue_count,
                 "active_bookings": active_bookings,
-                "upcoming_returns": upcoming_returns
+                "upcoming_returns": upcoming_returns,
+                "pending_transfers": pending_transfers
             }
             
             await db.db.dashboard_metrics.update_one(
@@ -758,7 +805,11 @@ async def get_audits():
     return await cursor.to_list(length=None)
 
 @api_router.post("/audits")
-async def create_audit(payload: dict):
+async def create_audit(
+    payload: dict = Body(...),
+    # Only Admin can create audit cycles
+    _caller: dict = Depends(role_required("admin"))
+):
     audit = {
         "id": f"audit_{uuid.uuid4().hex[:8]}",
         "name": payload.get("name"),

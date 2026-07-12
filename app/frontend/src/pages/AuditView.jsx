@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { ShieldAlert, CheckCircle2, AlertTriangle, FileText, Plus, X } from "lucide-react";
-import { api, userStore } from "@/lib/api";
+import { api } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import toast from "react-hot-toast";
 
 const AuditView = () => {
@@ -13,8 +14,7 @@ const AuditView = () => {
   
   const [selectedAudit, setSelectedAudit] = useState(null);
 
-  const role = userStore.getRole();
-  const username = userStore.getUsername();
+  const { role, username } = useAuth();
 
   const fetchData = async () => {
     try {

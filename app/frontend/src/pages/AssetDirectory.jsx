@@ -1,10 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { Search, Filter, Plus, Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import toast from "react-hot-toast";
 
 const AssetDirectory = () => {
+  const { role, username, departmentId } = useAuth();
+  // Only Asset Manager and Admin can register new assets (problem statement §4)
+  const canRegister = role === "admin" || role === "Asset Manager";
   const [assets, setAssets] = useState([]);
+  const [allocations, setAllocations] = useState([]);
+  const [users, setUsers] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -26,12 +32,16 @@ const AssetDirectory = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [assetRes, catRes] = await Promise.all([
+      const [assetRes, catRes, allocRes, userRes] = await Promise.all([
         api.get("/assets"),
-        api.get("/categories")
+        api.get("/categories"),
+        api.get("/allocations"),
+        api.get("/users")
       ]);
       setAssets(assetRes.data);
       setCategories(catRes.data);
+      setAllocations(allocRes.data);
+      setUsers(userRes.data);
       if (catRes.data.length > 0 && !newAsset.category_id) {
         setNewAsset(prev => ({ ...prev, category_id: catRes.data[0].id }));
       }
@@ -89,6 +99,21 @@ const AssetDirectory = () => {
   };
 
   const filteredAssets = assets.filter(a => {
+    if (role === "Employee") {
+      const isMyAsset = allocations.some(al => al.asset_id === a.id && al.allocated_to === username && al.status === "Active");
+      if (!isMyAsset) return false;
+    }
+    
+    if (role === "Department Head") {
+      const activeAlloc = allocations.find(al => al.asset_id === a.id && al.status === "Active");
+      if (activeAlloc) {
+         const allocUser = users.find(u => u.email === activeAlloc.allocated_to || u.name === activeAlloc.allocated_to);
+         if (allocUser && allocUser.department_id !== departmentId) return false;
+      } else {
+         if (a.department_id !== departmentId && a.department_id !== "General") return false;
+      }
+    }
+
     const matchesSearch = a.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           a.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           (a.serial_number && a.serial_number.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -101,9 +126,11 @@ const AssetDirectory = () => {
     <div className="w-full">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Asset Directory</h1>
-        <button onClick={() => setShowModal(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition-colors shadow-sm flex items-center gap-2">
-          <Plus className="w-4 h-4" /> Register Asset
-        </button>
+        {canRegister && (
+          <button onClick={() => setShowModal(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition-colors shadow-sm flex items-center gap-2">
+            <Plus className="w-4 h-4" /> Register Asset
+          </button>
+        )}
       </div>
 
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm flex flex-col h-[70vh]">

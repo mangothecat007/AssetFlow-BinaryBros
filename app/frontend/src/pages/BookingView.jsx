@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Calendar as CalendarIcon, Clock, Loader2, CheckCircle2, ShieldAlert } from "lucide-react";
-import { api, userStore } from "@/lib/api";
+import { api } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import toast from "react-hot-toast";
 
 import { Calendar, momentLocalizer } from 'react-big-calendar';
@@ -17,7 +18,7 @@ const BookingView = () => {
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [loading, setLoading] = useState(false);
-  const username = userStore.getUsername();
+  const { username } = useAuth();
 
   const fetchData = async () => {
     try {
@@ -148,6 +149,27 @@ const BookingView = () => {
                 if (event.status === 'Cancelled') backgroundColor = '#ef4444';
                 if (event.status === 'Completed') backgroundColor = '#10b981';
                 return { style: { backgroundColor } };
+              }}
+              components={{
+                event: ({ event }) => (
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="truncate">{event.title}</span>
+                    {event.status !== 'Cancelled' && (
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            await api.patch(`/bookings/${event.id}`, { status: 'Cancelled' });
+                            toast.success('Booking cancelled');
+                            fetchData();
+                          } catch { toast.error('Failed to cancel'); }
+                        }}
+                        className="ml-1 bg-white/20 hover:bg-white/40 rounded px-1 font-bold text-white"
+                        title="Cancel booking"
+                      >✕</button>
+                    )}
+                  </div>
+                )
               }}
             />
            </div>

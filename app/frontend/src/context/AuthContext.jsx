@@ -7,6 +7,7 @@ export const AuthProvider = ({ children }) => {
   const [role, setRole] = useState(null);
   const [scope, setScope] = useState(null);
   const [username, setUsername] = useState(null);
+  const [departmentId, setDepartmentId] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const isAuthenticated = !!role;
 
@@ -33,6 +34,7 @@ export const AuthProvider = ({ children }) => {
           setRole(data.role);
           setScope(data.scope);
           setUsername(data.username);
+          setDepartmentId(data.department_id);
           userStore.setRole(data.role);
           userStore.setScope(data.scope);
           userStore.setUsername(data.username);
@@ -126,7 +128,7 @@ export const AuthProvider = ({ children }) => {
   }
 
   return (
-    <AuthContext.Provider value={{ role, scope, username, isAuthenticated, login, logout, setRole }}>
+    <AuthContext.Provider value={{ isAuthenticated, role, scope, username, departmentId, isLoading, login, logout, setRole }}>
       {children}
     </AuthContext.Provider>
   );
