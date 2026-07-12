@@ -19,7 +19,9 @@ from fastapi import (
     HTTPException,
     Request,
     Response,
-    status
+    status,
+    Header,
+    Body
 )
 from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
@@ -57,21 +59,56 @@ class DatabaseManager:
 db = DatabaseManager(MONGO_URI)
 
 from contextlib import asynccontextmanager
+import asyncio
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await db.connect()
+    
+    # Create enterprise indexes
+    try:
+        await db.db.allocations.create_index(
+            [("asset_id", 1)],
+            unique=True,
+            partialFilterExpression={"status": "Active"},
+            name="unique_active_allocation_idx"
+        )
+        await db.db.assets.create_index("id", unique=True)
+        await db.db.assets.create_index("status")
+        await db.db.lifecycle_events.create_index([("asset_id", 1), ("occurred_at", -1)])
+        print("MongoDB Indexes Ensured")
+    except Exception as e:
+        print(f"Warning on index creation: {e}")
+        
+    # Start background task
+    task = asyncio.create_task(cache_dashboard_metrics())
+        
     yield
+    task.cancel()
 
 app = FastAPI(title="AssetFlow ERP API", lifespan=lifespan)
 
 origins = ["http://localhost:5173", "http://127.0.0.1:5173", "capacitor://localhost"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["http://localhost:5173", "http://localhost:5174"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+async def record_lifecycle_event(asset_id: str, from_status: str, to_status: str, source_type: str, source_id: str, acted_by: str, notes: str = ""):
+    await db.db.lifecycle_events.insert_one({
+        "id": f"life_{int(datetime.now().timestamp() * 1000)}",
+        "asset_id": asset_id,
+        "from_status": from_status,
+        "to_status": to_status,
+        "source_type": source_type,
+        "source_id": source_id,
+        "acted_by": acted_by,
+        "notes": notes,
+        "occurred_at": datetime.now().isoformat()
+    })
 
 api_router = APIRouter(prefix="/api")
 
@@ -232,46 +269,42 @@ async def get_allocations():
     return await cursor.to_list(length=None)
 
 @api_router.patch("/allocations/{alloc_id}")
-async def update_allocation_status(alloc_id: str, payload: dict):
-    # Payload can include "status" (e.g. "Approved", "Returned", "Rejected")
-    # If returned, also revert asset to Available
-    new_status = payload.get("status")
+async def update_allocation(alloc_id: str, payload: dict = Body(...)):
     alloc = await db.db.allocations.find_one({"id": alloc_id})
-    if not alloc:
-        raise HTTPException(status_code=404, detail="Allocation not found")
-        
-    update_data = {"status": new_status}
-    await db.db.allocations.update_one({"id": alloc_id}, {"$set": update_data})
+    if not alloc: raise HTTPException(404)
     
-    if new_status == "Returned":
+    await db.db.allocations.update_one({"id": alloc_id}, {"$set": payload})
+    
+    asset = await db.db.assets.find_one({"id": alloc["asset_id"]})
+    old_status = asset.get("status", "Allocated") if asset else "Allocated"
+    
+    if payload.get("status") == "Returned":
         await db.db.assets.update_one({"id": alloc["asset_id"]}, {"$set": {"status": "Available"}})
-    elif new_status == "Approved":
-        # First, mark any other active allocation for this asset as returned/transferred
-        await db.db.allocations.update_many(
-            {"asset_id": alloc["asset_id"], "status": "Active", "id": {"$ne": alloc_id}}, 
-            {"$set": {"status": "Transferred"}}
-        )
-        await db.db.allocations.update_one({"id": alloc_id}, {"$set": {"status": "Active"}})
-        await db.db.assets.update_one({"id": alloc["asset_id"]}, {"$set": {"status": "Allocated"}})
+        await record_lifecycle_event(alloc["asset_id"], old_status, "Available", "return", alloc_id, "system", payload.get("return_notes", ""))
         
-    return {"status": "success"}
+    return {"message": "Updated"}
 
 @api_router.post("/allocations/transfer")
 async def request_transfer(allocation: Allocation):
-    # Check if asset is already allocated and Active
-    existing = await db.db.allocations.find_one({"asset_id": allocation.asset_id, "status": "Active"})
+    try:
+        await db.db.allocations.insert_one(allocation.model_dump())
+    except DuplicateKeyError:
+        raise HTTPException(status_code=409, detail="Asset is already allocated")
+
+    # Change asset status
+    asset = await db.db.assets.find_one({"id": allocation.asset_id})
+    old_status = asset.get("status", "Available") if asset else "Available"
     
-    if existing:
-        # If it's already active, this is a transfer request that needs approval
-        allocation.status = "Pending Transfer"
-        await db.db.allocations.insert_one(allocation.model_dump())
-        return {"status": "success", "id": allocation.id, "message": "Transfer requested"}
-    else:
-        # Direct allocation
-        allocation.status = "Active"
-        await db.db.allocations.insert_one(allocation.model_dump())
-        await db.db.assets.update_one({"id": allocation.asset_id}, {"$set": {"status": "Allocated"}})
-        return {"status": "success", "id": allocation.id}
+    await db.db.assets.update_one(
+        {"id": allocation.asset_id},
+        {"$set": {"status": "Allocated"}}
+    )
+    
+    await record_lifecycle_event(
+        allocation.asset_id, old_status, "Allocated", "allocation", allocation.id, allocation.allocated_to, "Initial allocation"
+    )
+    
+    return {"message": "Allocated"}
 
 # --- BOOKINGS ---
 @api_router.get("/bookings")
@@ -315,35 +348,63 @@ async def update_maintenance_status(req_id: str, payload: dict):
     if not req:
         raise HTTPException(status_code=404, detail="Request not found")
         
+    old_status = (await db.db.assets.find_one({"id": req["asset_id"]})).get("status", "Unknown")
     await db.db.maintenance.update_one({"id": req_id}, {"$set": {"status": new_status}})
     
     if new_status == "Approved":
         await db.db.assets.update_one({"id": req["asset_id"]}, {"$set": {"status": "Under Maintenance"}})
+        await record_lifecycle_event(req["asset_id"], old_status, "Under Maintenance", "maintenance", req_id, "system", "Maintenance started")
     elif new_status == "Resolved":
         await db.db.assets.update_one({"id": req["asset_id"]}, {"$set": {"status": "Available"}})
+        await record_lifecycle_event(req["asset_id"], old_status, "Available", "maintenance", req_id, "system", "Maintenance resolved")
         
     return {"status": "success"}
 
 # --- ANALYTICS & AUDIT ---
+async def cache_dashboard_metrics():
+    while True:
+        try:
+            total_assets = await db.db.assets.count_documents({})
+            allocated = await db.db.assets.count_documents({"status": "Allocated"})
+            maintenance = await db.db.assets.count_documents({"status": "Under Maintenance"})
+            
+            today_str = datetime.now().strftime("%Y-%m-%d")
+            overdue_count = await db.db.allocations.count_documents({
+                "status": "Active",
+                "expected_return_date": {"$lt": today_str, "$ne": None}
+            })
+            
+            metrics = {
+                "total_assets": total_assets,
+                "allocated_assets": allocated,
+                "maintenance_active": maintenance,
+                "overdue_returns": overdue_count
+            }
+            
+            await db.db.dashboard_metrics.update_one(
+                {"id": "global_metrics"},
+                {"$set": {"metrics": metrics, "computed_at": datetime.now().isoformat()}},
+                upsert=True
+            )
+            print("Dashboard metrics cached.")
+        except Exception as e:
+            print(f"Error caching metrics: {e}")
+        
+        await asyncio.sleep(300) # Run every 5 mins
+
 @api_router.get("/analytics/dashboard")
 async def get_dashboard_metrics():
-    total_assets = await db.db.assets.count_documents({})
-    allocated = await db.db.assets.count_documents({"status": "Allocated"})
-    maintenance = await db.db.assets.count_documents({"status": "Under Maintenance"})
-    
-    # Calculate overdue returns
-    today_str = datetime.now().strftime("%Y-%m-%d")
-    overdue_count = await db.db.allocations.count_documents({
-        "status": "Active",
-        "expected_return_date": {"$lt": today_str, "$ne": None}
-    })
-    
-    metrics = {
-        "total_assets": total_assets,
-        "allocated_assets": allocated,
-        "maintenance_active": maintenance,
-        "overdue_returns": overdue_count
-    }
+    cached = await db.db.dashboard_metrics.find_one({"id": "global_metrics"})
+    if cached:
+        metrics = cached["metrics"]
+    else:
+        # Fallback if not cached yet
+        metrics = {
+            "total_assets": await db.db.assets.count_documents({}),
+            "allocated_assets": await db.db.assets.count_documents({"status": "Allocated"}),
+            "maintenance_active": await db.db.assets.count_documents({"status": "Under Maintenance"}),
+            "overdue_returns": 0
+        }
     
     allocs = await db.db.allocations.find({}, {"_id": 0}).sort("allocation_date", -1).limit(3).to_list(length=3)
     maints = await db.db.maintenance.find({}, {"_id": 0}).sort("reported_at", -1).limit(2).to_list(length=2)
@@ -402,7 +463,6 @@ async def get_activity_logs():
             "message": f"Audit Cycle '{au['name']}' is {au['status']}",
             "timestamp": au.get("start_date", datetime.now().isoformat())
         })
-        
     logs = sorted(logs, key=lambda x: x["timestamp"], reverse=True)
     return logs
 
@@ -423,19 +483,82 @@ async def get_reports():
     ])
     maintenance_freq = await maintenance_cursor.to_list(length=None)
 
-    # Mock department usage based on allocation data
-    # (Since departments are loose strings in this system right now)
-    dept_usage = [
-        {"dept": "IT Dept", "percentage": 75},
-        {"dept": "Operations", "percentage": 45},
-        {"dept": "HR", "percentage": 20},
-        {"dept": "Warehouse", "percentage": 85},
-    ]
+    # Department usage based on asset location and status
+    dept_cursor = db.db.assets.aggregate([
+        {
+            "$group": {
+                "_id": "$location",
+                "total": {"$sum": 1},
+                "allocated": {
+                    "$sum": {"$cond": [{"$eq": ["$status", "Allocated"]}, 1, 0]}
+                }
+            }
+        },
+        {
+            "$project": {
+                "dept": {"$ifNull": ["$_id", "Unassigned"]},
+                "percentage": {
+                    "$cond": [
+                        {"$eq": ["$total", 0]}, 
+                        0, 
+                        {"$round": [{"$multiply": [{"$divide": ["$allocated", "$total"]}, 100]}, 0]}
+                    ]
+                }
+            }
+        },
+        {"$sort": {"percentage": -1}}
+    ])
+    dept_usage = await dept_cursor.to_list(length=None)
+    
+    # Real Retirement List (Assets missing or in maintenance)
+    ret_cursor = db.db.assets.find(
+        {"status": {"$in": ["Lost", "Under Maintenance"]}},
+        {"_id": 0, "id": 1, "name": 1, "status": 1}
+    ).limit(5)
+    ret_assets = await ret_cursor.to_list(length=None)
+    retirement_list = []
+    for a in ret_assets:
+        retirement_list.append({
+            "id": a["id"],
+            "name": a.get("name", "Unknown"),
+            "condition": a.get("status", "Unknown")
+        })
+    
+    # Booking Heatmap using real DB bookings
+    heatmap_cursor = db.db.bookings.aggregate([
+        {
+            "$addFields": {
+                "parsed_date": {"$dateFromString": {"dateString": "$start_time"}}
+            }
+        },
+        {
+            "$group": {
+                "_id": {
+                    "day": {"$dayOfWeek": "$parsed_date"},
+                    "hour": {"$hour": "$parsed_date"}
+                },
+                "count": {"$sum": 1}
+            }
+        }
+    ])
+    raw_heatmap = await heatmap_cursor.to_list(length=None)
+    
+    days_map = {1: "Sun", 2: "Mon", 3: "Tue", 4: "Wed", 5: "Thu", 6: "Fri", 7: "Sat"}
+    heatmap_dict = {d: [0]*24 for d in days_map.values()}
+    for entry in raw_heatmap:
+        day_str = days_map.get(entry["_id"]["day"])
+        hour = entry["_id"]["hour"]
+        if day_str and 0 <= hour < 24:
+            heatmap_dict[day_str][hour] = entry["count"]
+            
+    booking_heatmap = [{"day": d, "hours": heatmap_dict[d]} for d in ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]]
     
     return {
         "category_breakdown": category_breakdown,
         "department_usage": dept_usage,
-        "maintenance_frequency": maintenance_freq
+        "maintenance_frequency": maintenance_freq,
+        "retirement_list": retirement_list,
+        "booking_heatmap": booking_heatmap
     }
 
 @api_router.get("/audits")
@@ -445,7 +568,6 @@ async def get_audits():
 
 @api_router.post("/audits")
 async def create_audit(payload: dict):
-    # payload: { name, department_id, start_date, end_date, auditors: [] }
     audit = {
         "id": f"audit_{uuid.uuid4().hex[:8]}",
         "name": payload.get("name"),
@@ -454,11 +576,10 @@ async def create_audit(payload: dict):
         "end_date": payload.get("end_date"),
         "auditors": payload.get("auditors", []),
         "status": "Active",
-        "verifications": [] # [{asset_id, status (Verified/Missing/Damaged)}]
+        "verifications": [] 
     }
     
-    # Pre-populate with assets that belong to this department (or all if no dept)
-    query = {} if not payload.get("department_id") else {"location": payload.get("department_id")} # simplified grouping
+    query = {} if not payload.get("department_id") else {"location": payload.get("department_id")}
     assets = await db.db.assets.find(query).to_list(length=None)
     for a in assets:
         audit["verifications"].append({"asset_id": a["id"], "asset_name": a["name"], "status": "Pending"})
@@ -466,33 +587,32 @@ async def create_audit(payload: dict):
     await db.db.audits.insert_one(audit)
     return {"status": "success", "id": audit["id"]}
 
-@api_router.patch("/audits/{audit_id}")
-async def update_audit(audit_id: str, payload: dict):
-    # Action can be 'verify_asset' or 'close_cycle'
-    action = payload.get("action")
-    audit = await db.db.audits.find_one({"id": audit_id})
-    if not audit:
-        raise HTTPException(status_code=404, detail="Audit not found")
-        
-    if action == "verify_asset":
-        asset_id = payload.get("asset_id")
-        status = payload.get("status") # Verified, Missing, Damaged
-        
-        # update the specific verification item inside the array
-        await db.db.audits.update_one(
-            {"id": audit_id, "verifications.asset_id": asset_id},
-            {"$set": {"verifications.$.status": status}}
-        )
-    elif action == "close_cycle":
-        # Any missing/damaged assets get their master status updated
-        for v in audit["verifications"]:
-            if v["status"] == "Missing":
-                await db.db.assets.update_one({"id": v["asset_id"]}, {"$set": {"status": "Lost"}})
-            elif v["status"] == "Damaged":
-                await db.db.assets.update_one({"id": v["asset_id"]}, {"$set": {"status": "Under Maintenance"}})
+@api_router.patch("/audits/{cycle_id}")
+async def update_audit(cycle_id: str, payload: dict = Body(...)):
+    if payload.get("status") == "Closed":
+        cycle = await db.db.audits.find_one({"id": cycle_id})
+        items = cycle.get("items", [])
+        for item in items:
+            asset = await db.db.assets.find_one({"id": item["asset_id"]})
+            old_status = asset.get("status", "Available") if asset else "Unknown"
+            
+            if item["status"] == "Missing":
+                await db.db.assets.update_one({"id": item["asset_id"]}, {"$set": {"status": "Lost"}})
+                await record_lifecycle_event(item["asset_id"], old_status, "Lost", "audit", cycle_id, "system", "Marked missing in audit")
+            elif item["status"] == "Damaged":
+                await db.db.assets.update_one({"id": item["asset_id"]}, {"$set": {"status": "Under Maintenance"}})
+                await record_lifecycle_event(item["asset_id"], old_status, "Under Maintenance", "audit", cycle_id, "system", "Marked damaged in audit")
+                await db.db.maintenance.insert_one({
+                    "id": f"mt_{int(datetime.now().timestamp()*1000)}",
+                    "asset_id": item["asset_id"],
+                    "reported_by": "Audit System",
+                    "issue": "Damaged during audit",
+                    "priority": "High",
+                    "status": "Pending Approval",
+                    "reported_at": datetime.now().isoformat()
+                })
                 
-        await db.db.audits.update_one({"id": audit_id}, {"$set": {"status": "Closed"}})
-        
-    return {"status": "success"}
+    await db.db.audits.update_one({"id": cycle_id}, {"$set": {"status": payload["status"]}})
+    return {"message": "Audit updated"}
 
 app.include_router(api_router)

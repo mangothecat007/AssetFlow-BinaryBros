@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { ArrowRightLeft, ShieldAlert, Loader2 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, userStore } from "@/lib/api";
 import toast from "react-hot-toast";
 
 const AllocationView = () => {
@@ -11,6 +11,10 @@ const AllocationView = () => {
   const [returnDate, setReturnDate] = useState("");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
+  const [returnModal, setReturnModal] = useState({ open: false, allocId: "", notes: "" });
+
+  const role = userStore.getRole();
+  const isManager = role === "admin" || role === "Asset Manager" || role === "Department Head";
 
   useEffect(() => {
     const fetchData = async () => {
@@ -83,7 +87,7 @@ const AllocationView = () => {
               </select>
             </div>
             
-            {/* Conflict Warning Mockup */}
+            {/* Conflict Warning */}
             {selectedAsset && allocations.find(al => al.asset_id === selectedAsset && al.status === "Active") && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex gap-3 text-red-800 text-sm">
                 <ShieldAlert className="w-5 h-5 flex-shrink-0" />
@@ -153,7 +157,7 @@ const AllocationView = () => {
                    </p>
                  </div>
                  <div className="flex gap-2">
-                   {al.status === "Pending Transfer" && (
+                   {al.status === "Pending Transfer" && isManager && (
                      <button onClick={async () => {
                        await api.patch(`/allocations/${al.id}`, { status: "Approved" });
                        toast.success("Transfer approved");
@@ -161,11 +165,7 @@ const AllocationView = () => {
                      }} className="px-3 py-1 bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 text-xs font-bold">Approve Transfer</button>
                    )}
                    {al.status === "Active" && (
-                     <button onClick={async () => {
-                       await api.patch(`/allocations/${al.id}`, { status: "Returned" });
-                       toast.success("Asset marked as returned");
-                       api.get("/allocations").then(res => setAllocations(res.data));
-                     }} className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-md hover:bg-emerald-100 text-xs font-bold">Mark Returned</button>
+                     <button onClick={() => setReturnModal({ open: true, allocId: al.id, notes: "" })} className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-md hover:bg-emerald-100 text-xs font-bold">Mark Returned</button>
                    )}
                  </div>
                </div>
@@ -174,6 +174,31 @@ const AllocationView = () => {
           </div>
         </div>
       </div>
+      
+      {/* Return Modal */}
+      {returnModal.open && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <h2 className="font-bold text-lg mb-4">Return Condition Check-in</h2>
+            <textarea 
+              autoFocus
+              className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-blue-500 min-h-[100px]"
+              placeholder="Note any damages, missing parts, or general condition..."
+              value={returnModal.notes}
+              onChange={(e) => setReturnModal({ ...returnModal, notes: e.target.value })}
+            ></textarea>
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => setReturnModal({ open: false, allocId: "", notes: "" })} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm font-medium">Cancel</button>
+              <button onClick={async () => {
+                 await api.patch(`/allocations/${returnModal.allocId}`, { status: "Returned", return_notes: returnModal.notes });
+                 toast.success("Asset returned successfully");
+                 setReturnModal({ open: false, allocId: "", notes: "" });
+                 api.get("/allocations").then(res => setAllocations(res.data));
+              }} className="px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-700 rounded-lg text-sm font-medium">Confirm Return</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

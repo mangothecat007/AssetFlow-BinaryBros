@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { 
   Package, Wrench, ShieldAlert, CheckCircle2, TrendingUp, Clock
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 
 const Dashboard = () => {
@@ -13,6 +14,7 @@ const Dashboard = () => {
   });
   const [activity, setActivity] = useState([]);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchDashboard = async () => {
@@ -77,13 +79,13 @@ const Dashboard = () => {
         <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
           <h2 className="text-lg font-bold text-gray-800 mb-4">Action Center</h2>
           <div className="space-y-3">
-             <button className="w-full text-left p-3 border border-gray-200 rounded-lg text-sm font-medium hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-colors">
+             <button onClick={() => navigate("/app/assets")} className="w-full text-left p-3 border border-gray-200 rounded-lg text-sm font-medium hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-colors">
                + Register New Asset
              </button>
-             <button className="w-full text-left p-3 border border-gray-200 rounded-lg text-sm font-medium hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700 transition-colors">
+             <button onClick={() => navigate("/app/allocations")} className="w-full text-left p-3 border border-gray-200 rounded-lg text-sm font-medium hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700 transition-colors">
                + Process Allocation
              </button>
-             <button className="w-full text-left p-3 border border-gray-200 rounded-lg text-sm font-medium hover:bg-amber-50 hover:border-amber-200 hover:text-amber-700 transition-colors">
+             <button onClick={() => navigate("/app/maintenance")} className="w-full text-left p-3 border border-gray-200 rounded-lg text-sm font-medium hover:bg-amber-50 hover:border-amber-200 hover:text-amber-700 transition-colors">
                + Raise Maintenance Ticket
              </button>
           </div>

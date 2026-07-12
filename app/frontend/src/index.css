@@ -51,9 +51,9 @@
 }
 
 [data-theme="light"] {
-    --bg: #eeecdd;
+    --bg: #f1f1f1;
     /* warm parchment base */
-    --surface: #e4e2d1;
+    --surface: #f0efee;
     /* soft cream surface */
     --surface-hover: #ede8df;
     /* slightly deeper cream on hover */
@@ -65,8 +65,8 @@
     /* warm brown-grey secondary */
     --grid-opacity: 0.06;
     --grid-color: 80, 60, 40;
-    --selection-bg: #c8bfb2;
-    --selection-text: #1a1612;
+    --selection-bg: rgba(70, 197, 165, 0.4);
+    --selection-text: #000000;
     --danger: #c0392b;
     /* slightly muted red for light bg */
     --warn: #d68910;

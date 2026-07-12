@@ -7,7 +7,9 @@ const ReportsView = () => {
   const [data, setData] = useState({ 
     category_breakdown: [], 
     department_usage: [],
-    maintenance_frequency: []
+    maintenance_frequency: [],
+    retirement_list: [],
+    booking_heatmap: []
   });
   const [loading, setLoading] = useState(true);
 
@@ -139,6 +141,63 @@ const ReportsView = () => {
                 <p className="text-gray-500 text-sm text-center">No maintenance records.</p>
               )}
             </div>
+          </div>
+        </div>
+
+        {/* Chart 4: Resource Booking Heatmap */}
+        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm lg:col-span-2">
+          <h2 className="text-lg font-bold text-gray-800 mb-6">Resource Booking Heatmap (Peak Windows)</h2>
+          <div className="space-y-2">
+            {loading ? (
+               <div className="h-32 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-blue-600" /></div>
+            ) : (
+               data.booking_heatmap?.map((row, i) => (
+                 <div key={i} className="flex items-center gap-4">
+                   <div className="w-10 text-xs font-bold text-gray-500">{row.day}</div>
+                   <div className="flex-1 flex gap-1 h-6">
+                     {row.hours.map((val, j) => (
+                       <div 
+                         key={j} 
+                         className="flex-1 rounded-sm transition-colors"
+                         style={{ backgroundColor: `rgba(59, 130, 246, ${val / 100})` }}
+                         title={`${val}% booked`}
+                       ></div>
+                     ))}
+                   </div>
+                 </div>
+               ))
+            )}
+            <div className="flex items-center gap-4 mt-2">
+              <div className="w-10"></div>
+              <div className="flex-1 flex justify-between text-[10px] text-gray-400 font-medium">
+                <span>9AM</span>
+                <span>12PM</span>
+                <span>3PM</span>
+                <span>6PM</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Chart 5: Nearing Retirement */}
+        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+          <h2 className="text-lg font-bold text-gray-800 mb-6">Assets Nearing Retirement</h2>
+          <div className="space-y-3">
+             {loading ? (
+                <div className="h-32 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-blue-600" /></div>
+             ) : (
+                data.retirement_list?.map((asset, i) => (
+                  <div key={i} className="flex flex-col border border-gray-100 rounded-lg p-3 bg-red-50/30">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="font-mono text-xs font-bold text-red-600 block">{asset.id}</span>
+                        <span className="text-sm font-medium text-gray-900">{asset.name}</span>
+                      </div>
+                      <span className="text-xs bg-white border border-red-200 text-red-700 px-2 py-0.5 rounded-full font-bold">{asset.age_years} yrs old</span>
+                    </div>
+                  </div>
+                ))
+             )}
           </div>
         </div>
 
