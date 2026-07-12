@@ -2,8 +2,9 @@
 
 ## 🎥 Project Demo
 
-      > **📹 Demo Video: [https://docs.google.com/videos/d/1g9tr3-Avs6OUeNkHgiik581IE_zU7hJ_2jTX2OzQ348/edit?usp=sharing] ** 
-
+      > **📹 Demo Video**
+     
+ https://docs.google.com/videos/d/1g9tr3-Avs6OUeNkHgiik581IE_zU7hJ_2jTX2OzQ348/edit?usp=sharing
 ---
 
 ## 📖 Overview
