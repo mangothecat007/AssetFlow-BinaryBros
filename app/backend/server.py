@@ -185,13 +185,14 @@ async def get_current_user(user: dict = Depends(verify_entry_token)):
     }
 
 def role_required(*allowed_roles: str):
-    """Dependency factory — raises 403 if caller's role is not in allowed_roles."""
+    """Dependency factory — raises 403 if caller's role is not in allowed_roles (case-insensitive)."""
     async def _check(user: dict = Depends(verify_entry_token)):
-        caller_role = user.get("role", "")
-        if caller_role not in allowed_roles:
+        caller_role = user.get("role", "").lower()
+        allowed_roles_lower = [r.lower() for r in allowed_roles]
+        if caller_role not in allowed_roles_lower:
             raise HTTPException(
                 status_code=403,
-                detail=f"Access denied. Required roles: {list(allowed_roles)}. Your role: {caller_role}"
+                detail=f"Access denied. Required roles: {list(allowed_roles)}. Your role: {user.get('role', '')}"
             )
         return user
     return _check

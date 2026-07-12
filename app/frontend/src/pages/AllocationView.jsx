@@ -17,7 +17,7 @@ const AllocationView = () => {
   const [returnModal, setReturnModal] = useState({ open: false, allocId: "", notes: "" });
 
   const { role, username, departmentId } = useAuth();
-  const isManager = role === "admin" || role === "Asset Manager" || role === "Department Head";
+  const isManager = role?.toLowerCase() === "admin" || role?.toLowerCase() === "asset manager" || role?.toLowerCase() === "department head";
 
   useEffect(() => {
     const fetchData = async () => {
@@ -123,13 +123,16 @@ const AllocationView = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Allocate To (Employee)</label>
-              <input 
-                type="text" 
+              <select 
                 value={targetEmployee}
                 onChange={(e) => setTargetEmployee(e.target.value)}
-                placeholder="e.g. Raj Kumar"
                 className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-blue-500 bg-white text-gray-900" 
-              />
+              >
+                <option value="">-- Choose Employee --</option>
+                {users.map(u => (
+                  <option key={u.email} value={u.email}>{u.name ? `${u.name} (${u.email})` : u.email}</option>
+                ))}
+              </select>
             </div>
 
             <div>
@@ -213,12 +216,10 @@ const AllocationView = () => {
           </div>
           <div className="p-4 text-sm text-gray-600 space-y-3">
              
-             {/* Pending Transfers */}
              {transfers.filter(t => {
-                if (t.status !== "Requested") return false;
-                if (role === "admin" || role === "Asset Manager") return true;
-                if (role === "Employee") return t.requested_by === username;
-                if (role === "Department Head") {
+                if (role?.toLowerCase() === "admin" || role?.toLowerCase() === "asset manager") return true;
+                if (role?.toLowerCase() === "employee") return t.requested_by === username;
+                if (role?.toLowerCase() === "department head") {
                    const u = users.find(usr => usr.email === t.requested_by || usr.name === t.requested_by);
                    return u && u.department_id === departmentId;
                 }
@@ -227,10 +228,10 @@ const AllocationView = () => {
                <div key={tx.id} className="border border-blue-200 bg-blue-50/50 p-3 rounded-lg flex justify-between items-center mb-4">
                  <div>
                    <p className="font-medium text-gray-900">Transfer Request: Asset {tx.asset_id}</p>
-                   <p className="text-xs text-gray-600">Requested by: <span className="font-bold">{tx.requested_by}</span></p>
+                   <p className="text-xs text-gray-600">Requested by: <span className="font-bold">{tx.requested_by}</span> • Status: <span className="font-bold">{tx.status}</span></p>
                  </div>
                  <div className="flex gap-2">
-                   {isManager && (
+                   {isManager && tx.status === "Requested" && (
                      <>
                        <button onClick={async () => {
                          await api.patch(`/transfers/${tx.id}/approve`, { status: "Rejected" });
@@ -252,9 +253,9 @@ const AllocationView = () => {
 
              {/* Active Allocations */}
              {allocations.filter(al => {
-                if (role === "admin" || role === "Asset Manager") return true;
-                if (role === "Employee") return al.allocated_to === username;
-                if (role === "Department Head") {
+                if (role?.toLowerCase() === "admin" || role?.toLowerCase() === "asset manager") return true;
+                if (role?.toLowerCase() === "employee") return al.allocated_to === username;
+                if (role?.toLowerCase() === "department head") {
                    const u = users.find(usr => usr.email === al.allocated_to || usr.name === al.allocated_to);
                    return u && u.department_id === departmentId;
                 }
@@ -269,16 +270,16 @@ const AllocationView = () => {
                    </p>
                  </div>
                  <div className="flex gap-2">
-                   {al.status === "Active" && (role === "admin" || role === "Asset Manager") && (
+                   {al.status === "Active" && (role?.toLowerCase() === "admin" || role?.toLowerCase() === "asset manager") && (
                      <button onClick={() => setReturnModal({ open: true, allocId: al.id, notes: "" })} className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-md hover:bg-emerald-100 text-xs font-bold transition-colors">Mark Returned</button>
                    )}
                  </div>
                </div>
              ))}
               {allocations.filter(al => {
-                if (role === "admin" || role === "Asset Manager") return true;
-                if (role === "Employee") return al.allocated_to === username;
-                if (role === "Department Head") {
+                if (role?.toLowerCase() === "admin" || role?.toLowerCase() === "asset manager") return true;
+                if (role?.toLowerCase() === "employee") return al.allocated_to === username;
+                if (role?.toLowerCase() === "department head") {
                    const u = users.find(usr => usr.email === al.allocated_to || usr.name === al.allocated_to);
                    return u && u.department_id === departmentId;
                 }
