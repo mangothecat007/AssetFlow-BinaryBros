@@ -2,6 +2,7 @@ import React from "react";
 import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Login from "@/pages/Login.jsx";
+import Signup from "@/pages/Signup.jsx";
 import { Toaster } from "react-hot-toast";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import Dashboard from "@/pages/Dashboard.jsx";
@@ -12,6 +13,7 @@ import BookingView from "@/pages/BookingView.jsx";
 import MaintenanceView from "@/pages/MaintenanceView.jsx";
 import AuditView from "@/pages/AuditView.jsx";
 import ReportsView from "@/pages/ReportsView.jsx";
+import Notifications from "@/pages/Notifications.jsx";
 import { userStore } from "@/lib/api";
 import { NavLink, Outlet } from "react-router-dom";
 
@@ -52,6 +54,7 @@ const AppLayout = () => {
           <NavItem to="/app/maintenance" label="Maintenance" />
           <NavItem to="/app/audit" label="Asset Audit" />
           <NavItem to="/app/reports" label="Reports & Analytics" />
+          <NavItem to="/app/notifications" label="Notifications" />
         </nav>
         <div className="mt-auto p-4 border-t border-gray-100">
           <p className="text-sm font-medium text-gray-800">Logged in as {role}</p>
@@ -80,6 +83,10 @@ const AppContent = () => {
           path="/login" 
           element={isAuthenticated ? <Navigate to="/app/dashboard" replace /> : <Login />} 
         />
+        <Route 
+          path="/signup" 
+          element={isAuthenticated ? <Navigate to="/app/dashboard" replace /> : <Signup />} 
+        />
 
         <Route
           path="/app"
@@ -97,6 +104,7 @@ const AppContent = () => {
           <Route path="maintenance" element={<MaintenanceView />} />
           <Route path="audit" element={<AuditView />} />
           <Route path="reports" element={<ReportsView />} />
+          <Route path="notifications" element={<Notifications />} />
           <Route path="*" element={<div className="p-8 text-center text-gray-500 text-lg">Coming soon in Phase 4...</div>} />
         </Route>
         

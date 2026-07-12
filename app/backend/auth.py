@@ -21,24 +21,8 @@ def get_current_keys():
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60*24  # 1 day
 
-# Hardcoded users for demonstration
-USERS = {
-    "emptyuser": {
-        "password": "emptyuser",
-        "role": "emptyuser",
-        "scope": "view:dashboard"
-    },
-    "user": {
-        "password": "iamabasicuser",
-        "role": "user",
-        "scope": "view:dashboard read:data"
-    },
-    "admin": {
-        "password": "admin",
-        "role": "admin",
-        "scope": "view:dashboard read:data write:system"
-    }
-}
+# Users are now managed in MongoDB
+# Removed hardcoded USERS dictionary
 
 class LoginRequest(BaseModel):
     username: str
@@ -63,14 +47,12 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     return encoded_jwt
 
 
-def authenticate_user(username: str, password: str):
-    user = USERS.get(username)
-    if not user:
-        return None
-    # timing-safe compare, ensuring both are explicitly the same type (str)
-    if not secrets.compare_digest(str(user["password"]), str(password)):
-        return None
-    return user
+def authenticate_user(db_users, username: str, password: str):
+    """
+    db_users should be the motor cursor/collection e.g. db.db.users
+    We expect the caller to do the async DB lookup and pass the user document.
+    """
+    pass # Will handle this directly in server.py since auth.py is synchronous and DB is async
 
 def verify_token(token: str):
     # Try static MASTER_SECRET first for never-expiring police tokens

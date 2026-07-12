@@ -130,16 +130,145 @@ const DepartmentsManager = () => {
   );
 };
 
-const CategoriesTable = () => (
-  <div className="p-8 text-center text-gray-500 text-sm">
-    Asset Categories data will populate here. (Electronics, Furniture, Vehicles)
-  </div>
-);
+const CategoriesTable = () => {
+  const [categories, setCategories] = useState([]);
+  const [newCat, setNewCat] = useState("");
 
-const EmployeesTable = () => (
-  <div className="p-8 text-center text-gray-500 text-sm">
-    Employee Directory will populate here. Admin can promote users to Asset Manager or Dept Head.
-  </div>
-);
+  const fetchCats = async () => {
+    try {
+      const res = await api.get("/categories");
+      setCategories(res.data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    fetchCats();
+  }, []);
+
+  const handleAdd = async (e) => {
+    e.preventDefault();
+    if (!newCat) return;
+    try {
+      await api.post("/categories", {
+        id: "cat_" + Date.now(),
+        name: newCat
+      });
+      toast.success("Category added!");
+      setNewCat("");
+      fetchCats();
+    } catch (e) {
+      toast.error("Failed to add category");
+    }
+  };
+
+  return (
+    <div>
+      <div className="p-4 bg-gray-50 border-b border-gray-100">
+        <form onSubmit={handleAdd} className="flex gap-4 max-w-lg">
+          <input 
+            type="text" 
+            value={newCat}
+            onChange={(e) => setNewCat(e.target.value)}
+            placeholder="New Category Name (e.g. Vehicles)" 
+            className="flex-1 border border-gray-300 rounded px-3 py-1.5 text-sm" 
+          />
+          <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded text-sm font-bold transition-colors">Add Category</button>
+        </form>
+      </div>
+      <table className="w-full text-left border-collapse">
+        <thead>
+          <tr className="bg-white border-b border-gray-200 text-gray-500 text-xs uppercase tracking-wider">
+            <th className="p-4 font-medium">Category Name</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {categories.map((c) => (
+            <tr key={c.id} className="hover:bg-gray-50 transition-colors text-sm text-gray-900">
+              <td className="p-4 font-medium">{c.name}</td>
+            </tr>
+          ))}
+          {categories.length === 0 && (
+            <tr><td className="p-4 text-center text-gray-500">No categories found</td></tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+const EmployeesTable = () => {
+  const [employees, setEmployees] = useState([]);
+  
+  const fetchEmployees = async () => {
+    try {
+      const res = await api.get("/users");
+      setEmployees(res.data);
+    } catch(e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    fetchEmployees();
+  }, []);
+
+  const promoteUser = async (username, newRole) => {
+    try {
+      await api.patch(`/users/${username}/role`, { role: newRole });
+      toast.success(`${username} promoted to ${newRole}`);
+      fetchEmployees();
+    } catch (e) {
+      toast.error("Failed to update role");
+    }
+  };
+
+  return (
+    <table className="w-full text-left border-collapse">
+      <thead>
+        <tr className="bg-white border-b border-gray-200 text-gray-500 text-xs uppercase tracking-wider">
+          <th className="p-4 font-medium">Username</th>
+          <th className="p-4 font-medium">Role</th>
+          <th className="p-4 font-medium">Status</th>
+          <th className="p-4 font-medium">Actions</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-gray-100">
+        {employees.map((emp) => (
+          <tr key={emp.id} className="hover:bg-gray-50 transition-colors text-sm text-gray-900">
+            <td className="p-4 font-medium">{emp.username}</td>
+            <td className="p-4">
+              <span className={`px-2 py-1 rounded-md text-xs font-bold ${
+                emp.role === 'admin' ? 'bg-purple-100 text-purple-700' : 
+                emp.role === 'Asset Manager' ? 'bg-blue-100 text-blue-700' : 
+                emp.role === 'Department Head' ? 'bg-emerald-100 text-emerald-700' : 
+                'bg-gray-100 text-gray-700'
+              }`}>
+                {emp.role}
+              </span>
+            </td>
+            <td className="p-4"><span className="px-2 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-bold">{emp.status}</span></td>
+            <td className="p-4 flex gap-2">
+              {emp.role === 'Employee' && (
+                <>
+                  <button onClick={() => promoteUser(emp.username, 'Asset Manager')} className="text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 px-2 py-1 rounded font-medium transition-colors">
+                    Make Asset Manager
+                  </button>
+                  <button onClick={() => promoteUser(emp.username, 'Department Head')} className="text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 px-2 py-1 rounded font-medium transition-colors">
+                    Make Dept Head
+                  </button>
+                </>
+              )}
+            </td>
+          </tr>
+        ))}
+        {employees.length === 0 && (
+          <tr><td colSpan="4" className="p-4 text-center text-gray-500">No employees found</td></tr>
+        )}
+      </tbody>
+    </table>
+  );
+};
 
 export default OrgSetup;

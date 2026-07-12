@@ -8,6 +8,7 @@ const AllocationView = () => {
   const [allocations, setAllocations] = useState([]);
   const [selectedAsset, setSelectedAsset] = useState("");
   const [targetEmployee, setTargetEmployee] = useState("");
+  const [returnDate, setReturnDate] = useState("");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -36,13 +37,15 @@ const AllocationView = () => {
         id: "alloc_" + Date.now(),
         asset_id: selectedAsset,
         allocated_to: targetEmployee,
+        expected_return_date: returnDate || null,
         status: "Active"
       });
-      toast.success("Transfer requested successfully!");
+      toast.success("Allocation processed!");
       setSelectedAsset("");
       setTargetEmployee("");
+      setReturnDate("");
       setNotes("");
-      const alRes = await api.get("/allocations");
+      fetchData();
       setAllocations(alRes.data);
     } catch (e) {
       if (e.response && e.response.status === 409) {
@@ -108,6 +111,16 @@ const AllocationView = () => {
             </div>
 
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Expected Return Date</label>
+              <input 
+                type="date"
+                value={returnDate}
+                onChange={(e) => setReturnDate(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-blue-500 bg-white"
+              />
+            </div>
+
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Reason / Notes</label>
               <textarea 
                 value={notes}
@@ -131,9 +144,30 @@ const AllocationView = () => {
           </div>
           <div className="p-4 text-sm text-gray-600 space-y-3">
              {allocations.map(al => (
-               <div key={al.id} className="border-b border-gray-50 pb-2">
-                 <p className="font-medium text-gray-900">Asset {al.asset_id} - Allocated to {al.allocated_to}</p>
-                 <p className="text-xs text-gray-500">Status: <span className="font-bold">{al.status}</span></p>
+               <div key={al.id} className="border-b border-gray-50 pb-3 flex justify-between items-center">
+                 <div>
+                   <p className="font-medium text-gray-900">Asset {al.asset_id} - Allocated to {al.allocated_to}</p>
+                   <p className="text-xs text-gray-500">
+                     Status: <span className="font-bold">{al.status}</span> 
+                     {al.expected_return_date && ` • Return by: ${al.expected_return_date}`}
+                   </p>
+                 </div>
+                 <div className="flex gap-2">
+                   {al.status === "Pending Transfer" && (
+                     <button onClick={async () => {
+                       await api.patch(`/allocations/${al.id}`, { status: "Approved" });
+                       toast.success("Transfer approved");
+                       api.get("/allocations").then(res => setAllocations(res.data));
+                     }} className="px-3 py-1 bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 text-xs font-bold">Approve Transfer</button>
+                   )}
+                   {al.status === "Active" && (
+                     <button onClick={async () => {
+                       await api.patch(`/allocations/${al.id}`, { status: "Returned" });
+                       toast.success("Asset marked as returned");
+                       api.get("/allocations").then(res => setAllocations(res.data));
+                     }} className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-md hover:bg-emerald-100 text-xs font-bold">Mark Returned</button>
+                   )}
+                 </div>
                </div>
              ))}
              {allocations.length === 0 && <p>No allocations recorded.</p>}
