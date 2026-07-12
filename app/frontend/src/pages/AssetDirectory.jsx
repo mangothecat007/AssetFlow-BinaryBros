@@ -8,7 +8,7 @@ const AssetDirectory = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [showModal, setShowModal] = useState(false);
-  const [newAsset, setNewAsset] = useState({ name: "", category_id: "Electronics", location: "IT Dept", is_bookable: false });
+  const [newAsset, setNewAsset] = useState({ name: "", category_id: "Electronics", location: "IT Dept", photo: null, is_bookable: false });
 
   const fetchAssets = async () => {
     setLoading(true);
@@ -29,20 +29,24 @@ const AssetDirectory = () => {
 
   const handleRegister = async (e) => {
     e.preventDefault();
-    const id = "AF-" + Math.floor(Math.random() * 10000).toString().padStart(4, "0");
     try {
-      await api.post("/assets", {
-        id,
-        name: newAsset.name || "New Asset",
-        category_id: newAsset.category_id,
-        status: "Available",
-        condition: "New",
-        location: newAsset.location,
-        is_bookable: newAsset.is_bookable
+      const formData = new FormData();
+      formData.append("name", newAsset.name || "New Asset");
+      formData.append("category_id", newAsset.category_id);
+      formData.append("department_id", "General");
+      formData.append("location", newAsset.location);
+      formData.append("status", "Available");
+      
+      if (newAsset.photo) {
+          formData.append("photo", newAsset.photo);
+      }
+
+      await api.post("/assets", formData, {
+         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      toast.success(`Asset ${id} registered!`);
+      toast.success(`Asset registered!`);
       setShowModal(false);
-      setNewAsset({ name: "", category_id: "Electronics", location: "IT Dept", is_bookable: false });
+      setNewAsset({ name: "", category_id: "Electronics", location: "IT Dept", photo: null, is_bookable: false });
       fetchAssets();
     } catch (e) {
       toast.error("Failed to register asset");
@@ -156,6 +160,10 @@ const AssetDirectory = () => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Location / Department</label>
                 <input required type="text" value={newAsset.location} onChange={e => setNewAsset({...newAsset, location: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-blue-500" placeholder="e.g. IT Dept" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Asset Photo (Optional)</label>
+                <input type="file" accept="image/*" onChange={e => setNewAsset({...newAsset, photo: e.target.files[0]})} className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-blue-500 bg-white" />
               </div>
               <div className="flex items-center gap-2 pt-2">
                 <input type="checkbox" id="bookable" checked={newAsset.is_bookable} onChange={e => setNewAsset({...newAsset, is_bookable: e.target.checked})} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />

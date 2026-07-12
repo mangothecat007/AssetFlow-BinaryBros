@@ -21,8 +21,13 @@ from fastapi import (
     Response,
     status,
     Header,
-    Body
+    Body,
+    UploadFile,
+    File,
+    Form
 )
+from fastapi.staticfiles import StaticFiles
+import shutil
 from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -87,6 +92,10 @@ async def lifespan(app: FastAPI):
     task.cancel()
 
 app = FastAPI(title="AssetFlow ERP API", lifespan=lifespan)
+
+UPLOAD_DIR = Path(__file__).parent.parent.parent / "uploads"
+UPLOAD_DIR.mkdir(exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 
 origins = ["http://localhost:5173", "http://127.0.0.1:5173", "capacitor://localhost"]
 app.add_middleware(
@@ -212,59 +221,6 @@ class MaintenanceRequest(BaseModel):
     technician_assigned: Optional[str] = None
 
 # --- USERS / EMPLOYEES ---
-@api_router.get("/users")
-async def get_users():
-    cursor = db.db.users.find({}, {"_id": 0, "password_hash": 0})
-    return await cursor.to_list(length=None)
-
-@api_router.patch("/users/{username}/role")
-async def update_user_role(username: str, payload: dict):
-    new_role = payload.get("role")
-    if not new_role:
-        raise HTTPException(status_code=400, detail="Missing role")
-    
-    scope = "view:dashboard read:data write:system" if new_role == "admin" else "view:dashboard read:data"
-    await db.db.users.update_one(
-        {"username": username}, 
-        {"$set": {"role": new_role, "scope": scope}}
-    )
-    return {"status": "success"}
-
-# --- CRUD ENDPOINTS ---
-@api_router.get("/assets")
-async def get_assets():
-    cursor = db.db.assets.find({}, {"_id": 0})
-    return await cursor.to_list(length=None)
-
-@api_router.post("/assets")
-async def create_asset(asset: Asset):
-    await db.db.assets.insert_one(asset.model_dump())
-    return {"status": "success", "id": asset.id}
-
-# --- DEPARTMENTS & CATEGORIES ---
-@api_router.get("/departments")
-async def get_departments():
-    cursor = db.db.departments.find({}, {"_id": 0})
-    return await cursor.to_list(length=None)
-
-@api_router.post("/departments")
-async def create_department(dept: Department):
-    await db.db.departments.insert_one(dept.model_dump())
-    return {"status": "success", "id": dept.id}
-
-@api_router.get("/categories")
-async def get_categories():
-    cursor = db.db.categories.find({}, {"_id": 0})
-    return await cursor.to_list(length=None)
-
-@api_router.post("/categories")
-async def create_category(cat: AssetCategory):
-    await db.db.categories.insert_one(cat.model_dump())
-    return {"status": "success", "id": cat.id}
-
-# --- ALLOCATIONS ---
-@api_router.get("/allocations")
-async def get_allocations():
     cursor = db.db.allocations.find({}, {"_id": 0})
     return await cursor.to_list(length=None)
 
