@@ -4,19 +4,27 @@ import { api, userStore } from "@/lib/api";
 import toast from "react-hot-toast";
 
 const Signup = () => {
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleSignup = async (e) => {
     e.preventDefault();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) return toast.error("Please enter a valid email address");
+    
+    const passRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d\w\W]{8,}$/;
+    if (!passRegex.test(password)) {
+      return toast.error("Password must be at least 8 characters, include an uppercase letter, lowercase letter, and a number");
+    }
+
     setLoading(true);
     try {
-      const res = await api.post("/auth/signup", { username, password });
+      const res = await api.post("/auth/signup", { email, password });
       toast.success(`Account created! You are assigned as ${res.data.role}`);
       // Auto-login after signup
-      const loginRes = await api.post("/auth/login", { username, password });
+      const loginRes = await api.post("/auth/login", { email, password });
       userStore.setToken(loginRes.data.access_token);
       userStore.setRole(loginRes.data.role);
       navigate("/app/dashboard");
@@ -40,14 +48,14 @@ const Signup = () => {
         
         <form onSubmit={handleSignup} className="p-8 space-y-6">
           <div>
-            <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">Username</label>
+            <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">Email Address</label>
             <input 
-              type="text" 
+              type="email" 
               required
               className="w-full p-3 bg-transparent border border-[var(--border)] text-[var(--text-primary)] rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:border-[var(--primary)] outline-none transition-all" 
-              placeholder="e.g. employee01"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              placeholder="e.g. employee@company.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
             />
           </div>
           

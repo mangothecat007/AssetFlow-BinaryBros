@@ -210,10 +210,10 @@ const EmployeesTable = () => {
     fetchEmployees();
   }, []);
 
-  const promoteUser = async (username, newRole) => {
+  const promoteUser = async (email, newRole) => {
     try {
-      await api.patch(`/users/${username}/role`, { role: newRole });
-      toast.success(`${username} promoted to ${newRole}`);
+      await api.patch(`/users/${email}/role`, { role: newRole });
+      toast.success(`${email} promoted to ${newRole}`);
       fetchEmployees();
     } catch (e) {
       toast.error("Failed to update role");
@@ -224,7 +224,7 @@ const EmployeesTable = () => {
     <table className="w-full text-left border-collapse">
       <thead>
         <tr className="bg-white border-b border-gray-200 text-gray-500 text-xs uppercase tracking-wider">
-          <th className="p-4 font-medium">Username</th>
+          <th className="p-4 font-medium">Email</th>
           <th className="p-4 font-medium">Role</th>
           <th className="p-4 font-medium">Status</th>
           <th className="p-4 font-medium">Actions</th>
@@ -233,7 +233,7 @@ const EmployeesTable = () => {
       <tbody className="divide-y divide-gray-100">
         {employees.map((emp) => (
           <tr key={emp.id} className="hover:bg-gray-50 transition-colors text-sm text-gray-900">
-            <td className="p-4 font-medium">{emp.username}</td>
+            <td className="p-4 font-medium">{emp.email}</td>
             <td className="p-4">
               <span className={`px-2 py-1 rounded-md text-xs font-bold ${
                 emp.role === 'admin' ? 'bg-purple-100 text-purple-700' : 
@@ -248,10 +248,10 @@ const EmployeesTable = () => {
             <td className="p-4 flex gap-2">
               {emp.role === 'Employee' && (
                 <>
-                  <button onClick={() => promoteUser(emp.username, 'Asset Manager')} className="text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 px-2 py-1 rounded font-medium transition-colors">
+                  <button onClick={() => promoteUser(emp.email, 'Asset Manager')} className="text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 px-2 py-1 rounded font-medium transition-colors">
                     Make Asset Manager
                   </button>
-                  <button onClick={() => promoteUser(emp.username, 'Department Head')} className="text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 px-2 py-1 rounded font-medium transition-colors">
+                  <button onClick={() => promoteUser(emp.email, 'Department Head')} className="text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 px-2 py-1 rounded font-medium transition-colors">
                     Make Dept Head
                   </button>
                 </>

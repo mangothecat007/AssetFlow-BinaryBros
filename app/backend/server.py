@@ -127,9 +127,9 @@ def hash_password(password: str) -> str:
 
 @api_router.post("/auth/signup")
 async def signup(login_data: LoginRequest):
-    existing = await db.db.users.find_one({"username": login_data.username})
+    existing = await db.db.users.find_one({"email": login_data.email})
     if existing:
-        raise HTTPException(status_code=400, detail="Username already exists")
+        raise HTTPException(status_code=400, detail="Email already exists")
     
     # Auto-assign 'admin' role if it's the very first user, otherwise 'Employee'
     user_count = await db.db.users.count_documents({})
@@ -137,7 +137,7 @@ async def signup(login_data: LoginRequest):
     
     new_user = {
         "id": f"u_{uuid.uuid4().hex[:8]}",
-        "username": login_data.username,
+        "email": login_data.email,
         "password_hash": hash_password(login_data.password),
         "role": role,
         "scope": "view:dashboard read:data" if role == "Employee" else "view:dashboard read:data write:system",
@@ -148,20 +148,19 @@ async def signup(login_data: LoginRequest):
 
 @api_router.post("/auth/login")
 async def login(login_data: LoginRequest, response: Response):
-    user_info = await db.db.users.find_one({
-        "username": login_data.username, 
+    user = await db.db.users.find_one({
+        "email": login_data.email,
         "password_hash": hash_password(login_data.password)
     })
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
     
-    if not user_info:
-        raise HTTPException(status_code=401, detail="Incorrect credentials")
-    
-    token = create_access_token(data={"sub": login_data.username, "role": user_info["role"], "scope": user_info["scope"]})
-    return {"access_token": token, "role": user_info["role"]}
+    token = create_access_token({"sub": user["email"], "role": user["role"], "scope": user.get("scope", "")})
+    return {"access_token": token, "role": user["role"]}
 
 @api_router.get("/auth/me")
 async def get_current_user(user: dict = Depends(verify_entry_token)):
-    return {"role": user["role"], "username": user.get("sub")}
+    return {"role": user["role"], "username": user.get("email")}
 
 # --- ASSETFLOW MODELS ---
 class UserInfo(BaseModel):
@@ -227,15 +226,15 @@ async def get_users():
     cursor = db.db.users.find({}, {"_id": 0, "password_hash": 0})
     return await cursor.to_list(length=None)
 
-@api_router.patch("/users/{username}/role")
-async def update_user_role(username: str, payload: dict):
+@api_router.patch("/users/{email}/role")
+async def update_user_role(email: str, payload: dict):
     new_role = payload.get("role")
     if not new_role:
         raise HTTPException(status_code=400, detail="Missing role")
     
     scope = "view:dashboard read:data write:system" if new_role == "admin" else "view:dashboard read:data"
     await db.db.users.update_one(
-        {"username": username}, 
+        {"email": email}, 
         {"$set": {"role": new_role, "scope": scope}}
     )
     return {"status": "success"}

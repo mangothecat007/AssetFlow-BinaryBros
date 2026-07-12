@@ -25,7 +25,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60*24  # 1 day
 # Removed hardcoded USERS dictionary
 
 class LoginRequest(BaseModel):
-    username: str
+    email: str
     password: str
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
@@ -78,12 +78,12 @@ def verify_token(token: str):
         except jwt.PyJWTError:
             raise HTTPException(status_code=401, detail="Could not validate credentials")
 
-    username = payload.get("sub")
+    email = payload.get("sub")
     role = payload.get("role")
     scope = payload.get("scope")
-    if not all([username, role, scope]):
+    if not all([email, role, scope]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    return {"username": username, "role": role, "scope": scope}
+    return {"email": email, "role": role, "scope": scope}
 
 # Dependency for standard REST API endpoints (General Access)
 async def verify_entry_token(request: Request):
