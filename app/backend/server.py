@@ -220,7 +220,91 @@ class MaintenanceRequest(BaseModel):
     status: str = "Pending"
     technician_assigned: Optional[str] = None
 
+
 # --- USERS / EMPLOYEES ---
+@api_router.get("/users")
+async def get_users():
+    cursor = db.db.users.find({}, {"_id": 0, "password_hash": 0})
+    return await cursor.to_list(length=None)
+
+@api_router.patch("/users/{username}/role")
+async def update_user_role(username: str, payload: dict):
+    new_role = payload.get("role")
+    if not new_role:
+        raise HTTPException(status_code=400, detail="Missing role")
+    
+    scope = "view:dashboard read:data write:system" if new_role == "admin" else "view:dashboard read:data"
+    await db.db.users.update_one(
+        {"username": username}, 
+        {"$set": {"role": new_role, "scope": scope}}
+    )
+    return {"status": "success"}
+
+# --- CRUD ENDPOINTS ---
+@api_router.get("/assets")
+async def get_assets():
+    cursor = db.db.assets.find({}, {"_id": 0})
+    return await cursor.to_list(length=None)
+
+@api_router.post("/assets")
+async def create_asset(
+    name: str = Form(...),
+    category_id: str = Form(...),
+    department_id: str = Form(...),
+    location: str = Form(""),
+    status: str = Form("Available"),
+    purchase_date: str = Form(""),
+    purchase_cost: float = Form(0),
+    photo: Optional[UploadFile] = File(None)
+):
+    asset_id = f"ast_{uuid.uuid4().hex[:8]}"
+    photo_url = None
+    if photo:
+        ext = photo.filename.split(".")[-1]
+        filename = f"{asset_id}.{ext}"
+        filepath = UPLOAD_DIR / filename
+        with filepath.open("wb") as buffer:
+            shutil.copyfileobj(photo.file, buffer)
+        photo_url = f"/uploads/{filename}"
+        
+    await db.db.assets.insert_one({
+        "id": asset_id,
+        "name": name,
+        "category_id": category_id,
+        "department_id": department_id,
+        "location": location,
+        "status": status,
+        "purchase_date": purchase_date,
+        "purchase_cost": purchase_cost,
+        "photo_url": photo_url,
+        "created_at": datetime.now().isoformat()
+    })
+    return {"status": "success", "id": asset_id}
+
+# --- DEPARTMENTS & CATEGORIES ---
+@api_router.get("/departments")
+async def get_departments():
+    cursor = db.db.departments.find({}, {"_id": 0})
+    return await cursor.to_list(length=None)
+
+@api_router.post("/departments")
+async def create_department(dept: Department):
+    await db.db.departments.insert_one(dept.model_dump())
+    return {"status": "success", "id": dept.id}
+
+@api_router.get("/categories")
+async def get_categories():
+    cursor = db.db.categories.find({}, {"_id": 0})
+    return await cursor.to_list(length=None)
+
+@api_router.post("/categories")
+async def create_category(cat: AssetCategory):
+    await db.db.categories.insert_one(cat.model_dump())
+    return {"status": "success", "id": cat.id}
+
+# --- ALLOCATIONS ---
+@api_router.get("/allocations")
+async def get_allocations():
     cursor = db.db.allocations.find({}, {"_id": 0})
     return await cursor.to_list(length=None)
 
