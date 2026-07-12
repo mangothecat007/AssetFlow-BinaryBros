@@ -2,11 +2,10 @@
 
 ## 🎥 Project Demo
 
-> **📹 Demo Video:** **Coming Soon**
+> **📹 Demo Video:** 
 
 **Demo Link:**  
-`<Paste YouTube / Google Drive / Loom Link Here>`
-
+**Coming Soon**
 ---
 
 ## 📖 Overview
